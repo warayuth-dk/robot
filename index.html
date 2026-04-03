@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบสนับสนุนการคัดกรอง - กองพัน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; touch-action: manipulation; }
+        .btn-main { transition: all 0.2s; shadow-lg; border-radius: 1.5rem; }
+        .btn-main:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <nav class="bg-green-800 text-white p-5 shadow-lg sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">🪖 <span>ระบบกรอก RTAMED</span></h1>
+            <div id="clock" class="text-xs bg-green-900 px-3 py-1 rounded-full opacity-80"></div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto p-4 pb-20">
+        
+        <div class="grid grid-cols-1 gap-4 mb-6">
+            <button onclick="fetchSheetData()" id="btn-1" class="btn-main bg-white border-2 border-green-600 text-green-700 font-bold py-6 text-xl shadow-sm flex flex-col items-center">
+                <span id="txt-1">1. ดึงข้อมูลจาก Google Sheets</span>
+                <span class="text-xs font-normal text-gray-400">กดเพื่ออัปเดตรายชื่อล่าสุด</span>
+            </button>
+
+            <button onclick="saveAndGo()" id="btn-2" class="btn-main bg-orange-500 text-white font-black py-8 text-2xl shadow-xl flex flex-col items-center hidden animate-bounce">
+                <span>2. จำข้อมูล & ไปหน้าเว็บ</span>
+                <span class="text-sm font-normal opacity-90">กดตรงนี้ก่อนไปกรอกในเว็บ RTAMED</span>
+            </button>
+        </div>
+
+        <div id="loader" class="hidden text-center py-10 text-gray-500 italic">⏳ กำลังดึงข้อมูล...</div>
+
+        <div id="preview-section" class="hidden bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                <span class="font-bold text-gray-600">พรีวิวข้อมูล (66 นาย)</span>
+                <span id="data-count" class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold"></span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 text-gray-400 uppercase text-xs">
+                        <tr>
+                            <th class="p-4">เลขที่</th>
+                            <th class="p-4">ชื่อ-สกุล</th>
+                            <th class="p-4 text-center">ระดับ</th>
+                            <th class="p-4 text-center">อุณหภูมิ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur border-t text-center text-xs text-gray-400">
+        พัฒนาเพื่อหน่วยงานทหาร | ใช้งานง่าย ปลอดภัย ไม่เก็บรหัสผ่าน
+    </div>
+
+    <script>
+        const CONFIG = {
+            id: '1oJOwg56sxwPFIvUPIJO7m92X4Y7vNSvIKmASG9W3-0A',
+            key: 'AIzaSyAB9Vrd_uQyNv2u74CBbIku-RTrKV6W61w',
+            range: 'Sheet1!A:G'
+        };
+
+        let cachedData = [];
+
+        async function fetchSheetData() {
+            const loader = document.getElementById('loader');
+            const preview = document.getElementById('preview-section');
+            const btn2 = document.getElementById('btn-2');
+            
+            loader.classList.remove('hidden');
+            preview.classList.add('hidden');
+
+            try {
+                const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.id}/values/${CONFIG.range}?key=${CONFIG.key}`);
+                const json = await res.json();
+                
+                if (json.values && json.values.length > 1) {
+                    cachedData = json.values.slice(1);
+                    renderTable(cachedData);
+                    preview.classList.remove('hidden');
+                    btn2.classList.remove('hidden');
+                    document.getElementById('txt-1').innerText = "✅ อัปเดตข้อมูลสำเร็จ";
+                }
+            } catch (e) {
+                alert("เชื่อมต่อ Google Sheets ไม่ได้");
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function renderTable(data) {
+            const body = document.getElementById('table-body');
+            body.innerHTML = data.map(row => `
+                <tr>
+                    <td class="p-4 font-bold text-gray-800">${row[1] || '-'}</td>
+                    <td class="p-4 text-gray-600">${row[2] || '-'}</td>
+                    <td class="p-4 text-center font-bold text-blue-600">${row[4] || '-'}</td>
+                    <td class="p-4 text-center font-bold text-red-600">${row[6] || '-'}</td>
+                </tr>
+            `).join('');
+            document.getElementById('data-count').innerText = data.length + " นาย";
+        }
+
+        function saveAndGo() {
+            const payload = cachedData.map(r => ({ id: r[1], lv: r[4], tp: r[6] }));
+            localStorage.setItem('rtamed_memory', JSON.stringify(payload));
+            
+            // สำรองข้อมูลลง Clipboard (เผื่อใช้บนมือถือ)
+            navigator.clipboard.writeText(JSON.stringify(payload)).then(() => {
+                alert("🤖 จำข้อมูลแล้ว!\n\n1. Login เข้าเว็บ RTAMED ให้เรียบร้อย\n2. กดปุ่ม 'กรอกข้อมูล' บนแถบบุ๊คมาร์ค");
+                window.open('https://rtamed.rta.mi.th/home', '_blank');
+            });
+        }
+
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('th-TH');
+        }, 1000);
+    </script>
+</body>
+</html>
