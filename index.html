@@ -29,7 +29,7 @@
       <video id="video" playsinline webkit-playsinline autoplay muted></video>
       <canvas id="canvas"></canvas>
 
-      <!-- 🟢 NEW: Live Status Badge (กรอบเล็กบนหน้ากล้อง) -->
+      <!-- 🟢 Live Badge (กรอบเล็กบนหน้ากล้อง) -->
       <div id="liveStatusBadge" class="live-status-badge">
         <div id="liveDot" class="live-dot"></div>
         <span id="liveText">วิเคราะห์สี...</span>
@@ -42,8 +42,7 @@
       <div class="bottle-guide" id="bottleGuide">
         <div class="guide-text">วางขวดในกรอบนี้</div>
       </div>
-      <div class="center-aim"></div>
-
+      
       <div id="instructionOverlay">
           <div class="overlay-icon">📱</div>
           <div class="overlay-text">กดเพื่อเปิดกล้องและสแกน QR Code บนขวด</div>
@@ -54,13 +53,14 @@
       </div>
     </div>
     
+    <!-- Photo Preview Area -->
     <div class="photo-preview-wrap" id="photoWrap">
       <img id="photoSnapshot" src="" alt="Captured Photo">
     </div>
 
     <button class="btn btn-snap" id="btnSnap" onclick="takePhoto()">
       <span>📸</span>
-      <span>ถ่ายภาพขวดปัสสาวะ</span>
+      <span>ถ่ายภาพและกรอกอุณหภูมิ</span>
     </button>
     
     <button class="btn btn-reset" id="btnReset" onclick="resetApp()">
@@ -71,28 +71,13 @@
     <div class="error-message" id="errorMessage"></div>
   </div>
 
-  <!-- Data Entry Card -->
+  <!-- Info Display Card -->
   <div class="card">
     <div class="info-section">
       <p class="info-label">ชื่อ-สกุล ทหาร:</p>
       <div id="displayUserName" class="info-value">รอสแกน QR CODE...</div>
     </div>
-
     <div id="colorResult">สี: --</div>
-
-    <div id="tempArea" class="temp-area">
-      <p class="temp-label">📊 อุณหภูมิร่างกาย (°C):</p>
-      <input type="number" id="bodyTemp" class="input-field" 
-             placeholder="36.5" step="0.1" min="35" max="42" inputmode="decimal">
-    </div>
-
-    <button class="btn btn-save" id="btnSave" onclick="confirmSave()">
-      <span>💾</span>
-      <span>บันทึกและส่งข้อมูล</span>
-    </button>
-    
-    <div class="spinner" id="syncSpinner"></div>
-    <div id="syncStatus" class="sync-status"></div>
   </div>
 
   <!-- History Card -->
@@ -100,12 +85,34 @@
     <p class="history-title">📋 RECENT LOGS (TOP 10)</p>
     <table>
       <thead>
-        <tr><th>วันที่</th><th>เวลา</th><th>เลขที่</th><th>ชื่อ</th><th>อุณหภูมิ</th><th>ระดับ</th></tr>
+        <tr><th>เวลา</th><th>เลขที่</th><th>ชื่อ</th><th>อุณหภูมิ</th><th>ระดับ</th></tr>
       </thead>
       <tbody id="historyBody">
-        <tr><td colspan="4" style="text-align:center; color:var(--muted)">ไม่มีข้อมูล</td></tr>
+        <tr><td colspan="5" style="text-align:center; color:var(--muted)">ไม่มีข้อมูล</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- 🌡️ TEMPERATURE POPUP MODAL -->
+<div id="tempModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-icon">🌡️</span>
+      <h3>บันทึกอุณหภูมิ</h3>
+    </div>
+    <p class="modal-desc">กรอกอุณหภูมิร่างกายของ <br><b><span id="targetName">--</span></b></p>
+    
+    <input type="number" id="modalBodyTemp" class="input-field big-input" 
+           placeholder="36.5" step="0.1" min="35" max="42" inputmode="decimal">
+    
+    <div class="modal-btns">
+      <button class="btn btn-reset" style="margin:0; display:block;" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-save-modal" id="btnConfirmSave" onclick="confirmSave()">
+        <span>💾</span> บันทึกข้อมูล
+      </button>
+    </div>
+    <div class="spinner" id="syncSpinner"></div>
   </div>
 </div>
 
