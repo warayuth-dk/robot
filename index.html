@@ -1,114 +1,112 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>UrineScan Pro — ปตอ.2 พัน.2</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>UrineScan Pro — ปตอ.2 พัน.2</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+Thai:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <header>
-        <div class="logo-text">🔬 ปตอ.2 พัน.2</div>
-        <div class="header-time">
-            <div id="currentDate" class="current-date">-- -- ----</div>
-            <div id="clock" class="clock">00:00:00</div>
-        </div>
-    </header>
+  <header>
+    <div class="logo-text">🔬 ปตอ.2 พัน.2</div>
+    <div class="header-time">
+        <div id="currentDate" class="current-date">-- -- ----</div>
+        <div id="clock" class="clock">00:00:00</div>
+    </div>
+  </header>
 
-    <!-- Camera Section -->
-    <div class="card">
-        <div id="stepTag" class="status-tag active">STEP 1: SCAN QR CODE</div>
-        
-        <div class="viewfinder" id="vFrame">
-            <video id="video" playsinline webkit-playsinline autoplay muted></video>
-            <canvas id="canvas"></canvas>
+  <!-- Camera Card -->
+  <div class="card">
+    <div id="stepTag" class="status-tag">STEP 1: SCAN QR CODE</div>
+    
+    <div class="viewfinder" id="vFrame">
+      <video id="video" playsinline webkit-playsinline autoplay muted></video>
+      <canvas id="canvas"></canvas>
 
-            <!-- 🔴 Real-time Live Badge -->
-            <div id="liveStatus" class="live-status-badge">
-                <div class="live-indicator">
-                    <div id="liveDot" class="live-dot"></div>
-                    <span class="live-tag">LIVE ANALYSIS</span>
-                </div>
-                <div id="liveText" class="live-result-text">กำลังวิเคราะห์...</div>
-                <div id="liveDesc" class="live-desc-text">กรุณาวางขวดให้ตรงกรอบ</div>
-            </div>
+      <!-- 🟢 NEW: Live Status Badge (กรอบเล็กบนหน้ากล้อง) -->
+      <div id="liveStatusBadge" class="live-status-badge">
+        <div id="liveDot" class="live-dot"></div>
+        <span id="liveText">วิเคราะห์สี...</span>
+      </div>
 
-            <button id="btnFlash" class="flash-toggle" onclick="toggleFlash()">
-                <span>💡</span> <small>เปิดแฟลช</small>
-            </button>
+      <button id="btnFlash" class="flash-toggle" onclick="toggleFlash()">
+        <span>💡</span> <small>เปิดแฟลช</small>
+      </button>
 
-            <div class="bottle-guide" id="bottleGuide">
-                <div class="guide-text">วางขวดในกรอบนี้</div>
-            </div>
-            
-            <div id="instructionOverlay">
-                <div class="overlay-icon">📱</div>
-                <div class="overlay-text">กดปุ่มเพื่อเริ่มสแกน QR Code บนขวด</div>
-                <button class="btn btn-primary" onclick="initCamera()">
-                    <span>🎥</span> <span>เปิดกล้อง</span>
-                </button>
-            </div>
-        </div>
-        
-        <div class="photo-preview-wrap" id="photoWrap">
-            <img id="photoSnapshot" src="" alt="Captured Photo">
-        </div>
+      <div class="bottle-guide" id="bottleGuide">
+        <div class="guide-text">วางขวดในกรอบนี้</div>
+      </div>
+      <div class="center-aim"></div>
 
-        <div class="action-buttons">
-            <button class="btn btn-snap" id="btnSnap" onclick="takePhoto()" style="display:none;">
-                <span>📸</span> <span>ถ่ายภาพยืนยัน</span>
-            </button>
-            <button class="btn btn-reset" id="btnReset" onclick="resetApp()" style="display:none;">
-                <span>↺</span> <span>ยกเลิก / เริ่มใหม่</span>
-            </button>
-        </div>
+      <div id="instructionOverlay">
+          <div class="overlay-icon">📱</div>
+          <div class="overlay-text">กดเพื่อเปิดกล้องและสแกน QR Code บนขวด</div>
+          <button class="btn btn-primary" onclick="initCamera()">
+            <span>🎥</span>
+            <span>เปิดกล้อง</span>
+          </button>
+      </div>
+    </div>
+    
+    <div class="photo-preview-wrap" id="photoWrap">
+      <img id="photoSnapshot" src="" alt="Captured Photo">
     </div>
 
-    <!-- Data Section -->
-    <div class="card">
-        <div class="info-section">
-            <p class="info-label">ข้อมูลผู้ตรวจ:</p>
-            <div id="displayUserName" class="info-value">รอสแกน QR CODE...</div>
-        </div>
+    <button class="btn btn-snap" id="btnSnap" onclick="takePhoto()">
+      <span>📸</span>
+      <span>ถ่ายภาพขวดปัสสาวะ</span>
+    </button>
+    
+    <button class="btn btn-reset" id="btnReset" onclick="resetApp()">
+      <span>↺</span>
+      <span>ยกเลิก / สแกนใหม่</span>
+    </button>
+    
+    <div class="error-message" id="errorMessage"></div>
+  </div>
 
-        <div id="colorResult" class="result-display-box">
-            ผลการวิเคราะห์สี: --
-        </div>
-
-        <div id="tempArea" class="temp-area">
-            <p class="temp-label">📊 อุณหภูมิร่างกาย (°C):</p>
-            <input type="number" id="bodyTemp" class="input-field" 
-                   placeholder="36.5" step="0.1" min="35" max="42" inputmode="decimal">
-        </div>
-
-        <button class="btn btn-save" id="btnSave" onclick="confirmSave()" style="display:none;">
-            <span>💾</span> <span>บันทึกข้อมูลเข้า Sheet</span>
-        </button>
-        
-        <div class="spinner" id="syncSpinner"></div>
-        <div id="syncStatus" class="sync-status"></div>
+  <!-- Data Entry Card -->
+  <div class="card">
+    <div class="info-section">
+      <p class="info-label">ชื่อ-สกุล ทหาร:</p>
+      <div id="displayUserName" class="info-value">รอสแกน QR CODE...</div>
     </div>
 
-    <!-- History Section -->
-    <div class="card history-section">
-        <p class="history-title">📋 บันทึกล่าสุด 10 รายการ</p>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>เวลา</th><th>ชื่อ</th><th>อุณหภูมิ</th><th>สี</th></tr>
-                </thead>
-                <tbody id="historyBody">
-                    <tr><td colspan="4" style="text-align:center; color:var(--muted)">ไม่มีข้อมูล</td></tr>
-                </tbody>
-            </table>
-        </div>
+    <div id="colorResult">สี: --</div>
+
+    <div id="tempArea" class="temp-area">
+      <p class="temp-label">📊 อุณหภูมิร่างกาย (°C):</p>
+      <input type="number" id="bodyTemp" class="input-field" 
+             placeholder="36.5" step="0.1" min="35" max="42" inputmode="decimal">
     </div>
+
+    <button class="btn btn-save" id="btnSave" onclick="confirmSave()">
+      <span>💾</span>
+      <span>บันทึกและส่งข้อมูล</span>
+    </button>
+    
+    <div class="spinner" id="syncSpinner"></div>
+    <div id="syncStatus" class="sync-status"></div>
+  </div>
+
+  <!-- History Card -->
+  <div class="card history-section">
+    <p class="history-title">📋 RECENT LOGS (TOP 10)</p>
+    <table>
+      <thead>
+        <tr><th>วันที่</th><th>เวลา</th><th>เลขที่</th><th>ชื่อ</th><th>อุณหภูมิ</th><th>ระดับ</th></tr>
+      </thead>
+      <tbody id="historyBody">
+        <tr><td colspan="4" style="text-align:center; color:var(--muted)">ไม่มีข้อมูล</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <script src="script.js"></script>
