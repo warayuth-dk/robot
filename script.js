@@ -115,9 +115,9 @@ function takePhoto() {
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
     if(!temp || temp < 35 || temp > 42) return alert("กรอกอุณหภูมิที่ถูกต้อง (35-42)");
-
+    const now = new Date();
     const record = { 
-        date: new Date().toLocaleDateString('th-TH'), 
+        date: now.toLocaleDateString('th-TH'), 
         Number: currentNumber, 
         name: currentName, 
         buble: currentBuble, 
