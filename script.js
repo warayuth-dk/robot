@@ -115,27 +115,36 @@ function takePhoto() {
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
     if(!temp || temp < 35 || temp > 42) return alert("กรอกอุณหภูมิที่ถูกต้อง (35-42)");
-    const now = new Date();
-    const record = { 
-        date: now.toLocaleDateString('th-TH'), 
-        Number: currentNumber, 
-        name: currentName, 
-        buble: currentBuble, 
-        temp: temp, 
-        level: currentLV, 
-        status: LEVELS[currentLV].name, 
-        time: new Date().toLocaleTimeString('th-TH') 
-    };
+  const now = new Date();
+  const record = {
+    date: now.toLocaleDateString('th-TH'),
+    Number: currentNumber,
+    name: currentName,
+    buble: currentBuble,
+    temp,
+    level: currentLV,
+    status: LEVELS[currentLV].name,
+    time: new Date().toLocaleTimeString('th-TH')
+  };
 
-    document.getElementById("syncSpinner").style.display = "block";
-    try {
-        await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
-        historyData.unshift(record);
-        localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
-        renderHistory();
-        resetApp();
-    } catch { alert("บันทึกล้มเหลว"); }
-    document.getElementById("syncSpinner").style.display = "none";
+  historyData.unshift(record);
+  localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0,20)));
+  renderHistory();
+
+  try {
+    await fetch(CONFIG_SHEET_URL,{
+      method:"POST",
+      mode:"no-cors",
+      body:JSON.stringify(record)
+    });
+
+    document.getElementById("syncStatus").textContent="✅ สำเร็จ";
+
+    setTimeout(resetApp,1200); // 🔥 ไม่ reload
+
+  } catch {
+    showError("ส่งข้อมูลไม่สำเร็จ");
+  }
 }
 
 // ================= UTILS & RECENT LOGS (ห้ามแก้ Logic renderHistory) =================
