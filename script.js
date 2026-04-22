@@ -2,11 +2,11 @@
 const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzkaX_ETSZP6iu4mBgg6M9LLlP6jaG98l9gNTvtVkzvd8d2gtnvp_XioH5sMQbLJTio0A/exec'; 
 
 const LEVELS = [
-  { lv: 0, name: "ใส", color: "#ffffff" },          // รูปที่ 5
-  { lv: 1, name: "เหลืองจาง", color: "#FEEFC6" },   // รูปที่ 4
-  { lv: 2, name: "เหลือง", color: "#FDD771" },       // รูปที่ 3
-  { lv: 3, name: "ส้ม/ขาดน้ำ", color: "#FFB300" },   // รูปที่ 2
-  { lv: 4, name: "น้ำตาล/อันตราย", color: "#795548" } // รูปที่ 1
+  { lv: 0, name: "ใส", color: "#ffffff" },          // เน้นจูนตัวนี้เป็นพิเศษ
+  { lv: 1, name: "เหลืองจาง", color: "#FEEFC6" },   
+  { lv: 2, name: "เหลือง", color: "#FDD771" },       
+  { lv: 3, name: "ส้ม/ขาดน้ำ", color: "#FFB300" },   
+  { lv: 4, name: "น้ำตาล/อันตราย", color: "#795548" } 
 ];
 
 let state = "IDLE", currentLV = 0, cameraStream = null;
@@ -96,7 +96,7 @@ function rgbToLab(r, g, b) {
     return { l: (116 * y) - 16, a: 500 * (x - y), b: 200 * (y - z) };
 }
 
-// ================= ANALYZE COLOR (TUNED BY SAMPLES) =================
+// ================= ANALYZE COLOR (TUNED FOR LV 0) =================
 function analyzeColor() {
     const centerX = canvasElement.width / 2, centerY = canvasElement.height / 2;
     const urineRGB = getAvgRGB(centerX, centerY, 30);
@@ -104,38 +104,32 @@ function analyzeColor() {
 
     let lv = 1;
 
-    // --- Decision Logic อ้างอิงจากรูปต้นแบบของคุณ ---
-    // lab.l = ความสว่าง (0 มืดมาก - 100 ขาวใส)
-    // lab.b = ค่าสีเหลือง (ยิ่งบวกมาก ยิ่งเหลืองเข้ม/ส้ม)
-
-    if (lab.l > 92 && lab.b < 8) {
-        lv = 0; // รูปที่ 5: ใส (L สูงมาก, b ต่ำมาก)
+    // --- จูนพิเศษสำหรับความใส (LV 0) ---
+    // ปรับให้ L (ความสว่าง) ยืดหยุ่นขึ้น และยอมรับค่า b (เหลืองสะท้อน) ได้ถึง 14
+    if (lab.l > 85 && lab.b < 14) {
+        lv = 0; 
     }
     else if (lab.l < 42) { 
-        lv = 4; // รูปที่ 1: น้ำตาล (L ต่ำกว่า 42 คือมืด/ทึบแสงชัดเจน)
+        lv = 4; 
     }
     else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) {
-        lv = 3; // รูปที่ 2: ส้ม (ค่าเหลือง b พุ่งสูง หรือเหลืองแต่เริ่มมืด)
+        lv = 3; 
     }
     else if (lab.b > 28) {
-        lv = 2; // รูปที่ 3: เหลือง (ค่าเหลือง b อยู่ในเกณฑ์ปานกลาง)
+        lv = 2; 
     }
     else {
-        lv = 1; // รูปที่ 4: เหลืองจาง (เหลืองน้อยและสว่าง)
+        lv = 1; 
     }
 
     currentLV = lv;
     const info = LEVELS[lv];
     
-    // อัปเดต UI หน้าจอ
     const liveText = document.getElementById("liveText");
     const liveDot = document.getElementById("liveDot");
     if(liveText) liveText.innerText = `LV.${lv} - ${info.name}`;
     if(liveDot) liveDot.style.backgroundColor = info.color;
     
-    // Debug (เปิดดูค่า L, b เพื่อจูนหน้างาน)
-    // console.log(`Lightness(L): ${lab.l.toFixed(1)}, Yellow(b): ${lab.b.toFixed(1)}`);
-
     const popupBadge = document.getElementById("popupColorBadge");
     if(popupBadge) {
         popupBadge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${lv})`;
@@ -174,7 +168,7 @@ async function confirmSave() {
         historyData.unshift(record);
         localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
-        alert("บันทึกข้อมูลเรียบร้อย");
+        alert("บันทึกสำเร็จ");
         resetApp();
     } catch { alert("บันทึกล้มเหลว"); }
 }
