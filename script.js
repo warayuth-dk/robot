@@ -2,11 +2,11 @@
 const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzkaX_ETSZP6iu4mBgg6M9LLlP6jaG98l9gNTvtVkzvd8d2gtnvp_XioH5sMQbLJTio0A/exec'; 
 
 const LEVELS = [
-  { lv: 0, name: "ใส", color: "#ffffff" },
-  { lv: 1, name: "เหลืองจาง", color: "#FEEFC6" },
-  { lv: 2, name: "เหลือง", color: "#FDD771" },
-  { lv: 3, name: "ส้ม/ขาดน้ำ", color: "#FFB300" },
-  { lv: 4, name: "น้ำตาล/อันตราย", color: "#795548" }
+  { lv: 0, name: "ใส", color: "#ffffff" },          // รูปที่ 5
+  { lv: 1, name: "เหลืองจาง", color: "#FEEFC6" },   // รูปที่ 4
+  { lv: 2, name: "เหลือง", color: "#FDD771" },       // รูปที่ 3
+  { lv: 3, name: "ส้ม/ขาดน้ำ", color: "#FFB300" },   // รูปที่ 2
+  { lv: 4, name: "น้ำตาล/อันตราย", color: "#795548" } // รูปที่ 1
 ];
 
 let state = "IDLE", currentLV = 0, cameraStream = null;
@@ -77,76 +77,68 @@ function handleQRCode(data) {
     } catch (e) { console.log("QR Format Error"); }
 }
 
-// ================= COLOR SPACE CONVERSION (Lab) =================
+// ================= CIELAB CONVERSION =================
 function rgbToLab(r, g, b) {
-    // 1. Normalize RGB
     r /= 255; g /= 255; b /= 255;
     r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
     g = (g > 0.04045) ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
     b = (b > 0.04045) ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
 
-    // 2. Convert to XYZ
     let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
     let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
     let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
 
-    // 3. Convert XYZ to Lab (D65 White Point)
     x /= 95.047; y /= 100.000; z /= 108.883;
     x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + (16 / 116);
     y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + (16 / 116);
     z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + (16 / 116);
 
-    return {
-        l: (116 * y) - 16,
-        a: 500 * (x - y),
-        b: 200 * (y - z)
-    };
+    return { l: (116 * y) - 16, a: 500 * (x - y), b: 200 * (y - z) };
 }
 
-// ================= ANALYZE COLOR (Lab Mode) =================
+// ================= ANALYZE COLOR (TUNED BY SAMPLES) =================
 function analyzeColor() {
     const centerX = canvasElement.width / 2, centerY = canvasElement.height / 2;
-    
     const urineRGB = getAvgRGB(centerX, centerY, 30);
     const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
 
-    // ค่าที่ใช้ตัดสิน: 
-    // lab.l = ความสว่าง (0 มืด - 100 สว่าง)
-    // lab.b = ความเหลือง (ยิ่งบวกมาก ยิ่งเหลืองเข้ม)
-    
     let lv = 1;
 
-    // --- ปรับจูน Logic ตาม LAB ---
-    if (lab.l > 88 && lab.b < 15) {
-        lv = 0; // ใส (สว่างมากและเหลืองน้อย)
+    // --- Decision Logic อ้างอิงจากรูปต้นแบบของคุณ ---
+    // lab.l = ความสว่าง (0 มืดมาก - 100 ขาวใส)
+    // lab.b = ค่าสีเหลือง (ยิ่งบวกมาก ยิ่งเหลืองเข้ม/ส้ม)
+
+    if (lab.l > 92 && lab.b < 8) {
+        lv = 0; // รูปที่ 5: ใส (L สูงมาก, b ต่ำมาก)
     }
-    else if (lab.l < 45) {
-        lv = 4; // น้ำตาล (มืดมาก)
+    else if (lab.l < 42) { 
+        lv = 4; // รูปที่ 1: น้ำตาล (L ต่ำกว่า 42 คือมืด/ทึบแสงชัดเจน)
     }
-    else if (lab.b > 65 || (lab.b > 50 && lab.l < 65)) {
-        lv = 3; // ส้ม (เหลืองเข้มมาก หรือ เหลืองมืด)
+    else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) {
+        lv = 3; // รูปที่ 2: ส้ม (ค่าเหลือง b พุ่งสูง หรือเหลืองแต่เริ่มมืด)
     }
-    else if (lab.b > 30) {
-        lv = 2; // เหลืองปกติ
+    else if (lab.b > 28) {
+        lv = 2; // รูปที่ 3: เหลือง (ค่าเหลือง b อยู่ในเกณฑ์ปานกลาง)
     }
     else {
-        lv = 1; // เหลืองจาง
+        lv = 1; // รูปที่ 4: เหลืองจาง (เหลืองน้อยและสว่าง)
     }
 
     currentLV = lv;
     const info = LEVELS[lv];
     
+    // อัปเดต UI หน้าจอ
     const liveText = document.getElementById("liveText");
     const liveDot = document.getElementById("liveDot");
     if(liveText) liveText.innerText = `LV.${lv} - ${info.name}`;
     if(liveDot) liveDot.style.backgroundColor = info.color;
     
-    // Debug: ปลดคอมเมนต์บรรทัดล่างเพื่อดูค่า Lab จริงๆ บนหน้าจอตอนจูน
-    // console.log(`L: ${lab.l.toFixed(1)}, b: ${lab.b.toFixed(1)}`);
+    // Debug (เปิดดูค่า L, b เพื่อจูนหน้างาน)
+    // console.log(`Lightness(L): ${lab.l.toFixed(1)}, Yellow(b): ${lab.b.toFixed(1)}`);
 
     const popupBadge = document.getElementById("popupColorBadge");
     if(popupBadge) {
-        popupBadge.innerText = `ผล: ${info.name} (LV.${lv})`;
+        popupBadge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${lv})`;
         popupBadge.style.backgroundColor = info.color;
         popupBadge.style.color = (lv >= 3) ? "#fff" : "#000";
     }
@@ -182,7 +174,7 @@ async function confirmSave() {
         historyData.unshift(record);
         localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
-        alert("บันทึกสำเร็จ");
+        alert("บันทึกข้อมูลเรียบร้อย");
         resetApp();
     } catch { alert("บันทึกล้มเหลว"); }
 }
@@ -206,7 +198,7 @@ function renderHistory() {
       <td>${r.Number}</td>
       <td>${r.name}</td>
       <td>${r.temp}°</td>
-      <td style="color:${LEVELS[r.level].color}">LV.${r.level}</td>
+      <td style="font-weight:bold; color:${LEVELS[r.level].lv >= 3 ? '#e67e22' : '#2ecc71'}">LV.${r.level}</td>
     </tr>
   `).join('');
 }
@@ -214,6 +206,7 @@ function renderHistory() {
 function resetApp() { location.reload(); }
 
 async function toggleFlash() {
+    if (!cameraStream) return;
     const track = cameraStream.getVideoTracks()[0];
     isFlashOn = !isFlashOn;
     await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
