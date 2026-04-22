@@ -77,59 +77,78 @@ function handleQRCode(data) {
     } catch (e) { console.log("QR Format Error"); }
 }
 
-// ================= ANALYZE COLOR (TUNED BY YOUR SAMPLES) =================
+// ================= COLOR SPACE CONVERSION (Lab) =================
+function rgbToLab(r, g, b) {
+    // 1. Normalize RGB
+    r /= 255; g /= 255; b /= 255;
+    r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = (g > 0.04045) ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = (b > 0.04045) ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    // 2. Convert to XYZ
+    let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
+    let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
+    let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
+
+    // 3. Convert XYZ to Lab (D65 White Point)
+    x /= 95.047; y /= 100.000; z /= 108.883;
+    x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + (16 / 116);
+    y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + (16 / 116);
+    z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + (16 / 116);
+
+    return {
+        l: (116 * y) - 16,
+        a: 500 * (x - y),
+        b: 200 * (y - z)
+    };
+}
+
+// ================= ANALYZE COLOR (Lab Mode) =================
 function analyzeColor() {
     const centerX = canvasElement.width / 2, centerY = canvasElement.height / 2;
     
-    // 1. อ่านค่าสีจากขวด และ พื้นหลัง
-    const urine = getAvgRGB(centerX, centerY, 30);
-    const white = getAvgRGB(centerX + 150, centerY - 150, 20); // ขยับจุดขาวให้พ้นเงาขวด
+    const urineRGB = getAvgRGB(centerX, centerY, 30);
+    const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
 
-    // 2. คำนวณค่าดัชนี
-    const yellowIndex = (white[2]/Math.max(white[0],1)) - (urine[2]/Math.max(urine[0],1));
-    const urineBr = (0.299 * urine[0] + 0.587 * urine[1] + 0.114 * urine[2]);
-    const whiteBr = (0.299 * white[0] + 0.587 * white[1] + 0.114 * white[2]);
-    const brRatio = urineBr / Math.max(whiteBr, 1);
-
-    // 3. ปรับจูน Logic ตามรูปภาพต้นแบบ
+    // ค่าที่ใช้ตัดสิน: 
+    // lab.l = ความสว่าง (0 มืด - 100 สว่าง)
+    // lab.b = ความเหลือง (ยิ่งบวกมาก ยิ่งเหลืองเข้ม)
+    
     let lv = 1;
 
-    // --- LV.0: ใส (ภาพที่ 1) ---
-    if (yellowIndex < 0.10 && brRatio > 0.85) {
-        lv = 0;
+    // --- ปรับจูน Logic ตาม LAB ---
+    if (lab.l > 88 && lab.b < 15) {
+        lv = 0; // ใส (สว่างมากและเหลืองน้อย)
     }
-    // --- LV.4: น้ำตาล (ภาพที่ 2 - ต้องมืดและเข้มมาก) ---
-    else if (yellowIndex > 0.80 && brRatio < 0.45) {
-        lv = 4;
+    else if (lab.l < 45) {
+        lv = 4; // น้ำตาล (มืดมาก)
     }
-    // --- LV.3: ส้ม/ส้มเข้ม (ภาพที่ 4) ---
-    else if (yellowIndex > 0.55 || (yellowIndex > 0.45 && brRatio < 0.60)) {
-        lv = 3;
+    else if (lab.b > 65 || (lab.b > 50 && lab.l < 65)) {
+        lv = 3; // ส้ม (เหลืองเข้มมาก หรือ เหลืองมืด)
     }
-    // --- LV.2: เหลืองมาตรฐาน (ภาพที่ 3 - แก้ปัญหาจากเดิมที่โดดไป LV.4) ---
-    else if (yellowIndex > 0.22) {
-        lv = 2;
+    else if (lab.b > 30) {
+        lv = 2; // เหลืองปกติ
     }
-    // --- LV.1: เหลืองจาง ---
     else {
-        lv = 1;
+        lv = 1; // เหลืองจาง
     }
 
     currentLV = lv;
     const info = LEVELS[lv];
     
-    // แสดงผลบน Badge หน้ากล้อง
     const liveText = document.getElementById("liveText");
     const liveDot = document.getElementById("liveDot");
     if(liveText) liveText.innerText = `LV.${lv} - ${info.name}`;
     if(liveDot) liveDot.style.backgroundColor = info.color;
     
-    // อัปเดตข้อมูลใน Popup (สำหรับตอนกดถ่าย)
+    // Debug: ปลดคอมเมนต์บรรทัดล่างเพื่อดูค่า Lab จริงๆ บนหน้าจอตอนจูน
+    // console.log(`L: ${lab.l.toFixed(1)}, b: ${lab.b.toFixed(1)}`);
+
     const popupBadge = document.getElementById("popupColorBadge");
     if(popupBadge) {
         popupBadge.innerText = `ผล: ${info.name} (LV.${lv})`;
         popupBadge.style.backgroundColor = info.color;
-        popupBadge.style.color = (lv === 4 || lv === 3) ? "#fff" : "#000";
+        popupBadge.style.color = (lv >= 3) ? "#fff" : "#000";
     }
 }
 
@@ -147,38 +166,39 @@ async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
     if(!temp || temp < 35 || temp > 42) return alert("กรอกอุณหภูมิที่ถูกต้อง (35.0 - 42.0)");
     
-    const now = new Date();
     const record = { 
-        date: now.toLocaleDateString('th-TH'), 
+        date: new Date().toLocaleDateString('th-TH'), 
         Number: currentNumber, 
         name: currentName, 
         buble: currentBuble, 
         temp: temp, 
         level: currentLV, 
         status: LEVELS[currentLV].name, 
-        time: now.toLocaleTimeString('th-TH') 
+        time: new Date().toLocaleTimeString('th-TH') 
     };
-
-    const spinner = document.getElementById("syncSpinner");
-    if(spinner) spinner.style.display = "block";
 
     try {
         await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
         historyData.unshift(record);
         localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
-        alert("บันทึกข้อมูลเรียบร้อย");
+        alert("บันทึกสำเร็จ");
         resetApp();
-    } catch { 
-        alert("บันทึกล้มเหลว กรุณาลองใหม่"); 
-    }
-    if(spinner) spinner.style.display = "none";
+    } catch { alert("บันทึกล้มเหลว"); }
 }
 
 // ================= UTILS =================
+function getAvgRGB(x, y, size) {
+    const data = canvas.getImageData(x - size/2, y - size/2, size, size).data;
+    let r=0, g=0, b=0;
+    for (let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
+    const pixels = data.length / 4;
+    return [r/pixels, g/pixels, b/pixels];
+}
+
 function renderHistory() {
   const body = document.getElementById("historyBody");
-  if (!body || historyData.length === 0) return;
+  if (!body) return;
   body.innerHTML = historyData.map(r => `
     <tr>
       <td>${r.date}</td>
@@ -186,37 +206,22 @@ function renderHistory() {
       <td>${r.Number}</td>
       <td>${r.name}</td>
       <td>${r.temp}°</td>
-      <td style="font-weight:bold; color:${LEVELS[r.level].lv >= 3 ? '#e67e22' : '#2ecc71'}">LV.${r.level}</td>
+      <td style="color:${LEVELS[r.level].color}">LV.${r.level}</td>
     </tr>
   `).join('');
-}
-
-function getAvgRGB(x, y, size) {
-    const startX = Math.max(0, x - size/2);
-    const startY = Math.max(0, y - size/2);
-    const data = canvas.getImageData(startX, startY, size, size).data;
-    let r=0, g=0, b=0;
-    for (let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
-    const pixels = data.length / 4;
-    return [r/pixels, g/pixels, b/pixels];
 }
 
 function resetApp() { location.reload(); }
 
 async function toggleFlash() {
-    if (!cameraStream) return;
     const track = cameraStream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    if (!capabilities.torch) return alert("อุปกรณ์ไม่รองรับการเปิดแฟลช");
     isFlashOn = !isFlashOn;
     await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
-    const btnFlash = document.getElementById("btnFlash");
-    if(btnFlash) btnFlash.style.backgroundColor = isFlashOn ? "#ffeb3b" : "#eee";
 }
 
 function startClock() {
     setInterval(() => { 
-        const clockEl = document.getElementById('clock');
-        if(clockEl) clockEl.textContent = new Date().toLocaleTimeString('th-TH'); 
+        const el = document.getElementById('clock');
+        if(el) el.textContent = new Date().toLocaleTimeString('th-TH'); 
     }, 1000);
 }
