@@ -145,18 +145,32 @@ async function scanThermometer() {
     snapBtn.innerText = "⌛ กำลังอ่านค่า...";
     snapBtn.disabled = true;
 
-    // สร้าง Canvas สำหรับ Crop รูปปรอท (ตามกรอบสี่เหลี่ยมผืนผ้า)
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 400;
     tempCanvas.height = 200;
     const ctx = tempCanvas.getContext('2d');
+    
+    // 1. Crop รูปจากกลางจอ
     ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 400, 200);
     
-    const imageData = tempCanvas.toDataURL('image/png');
+    // 🟢 เพิ่ม: การปรับแต่งภาพ (Thresholding) ให้ตัวเลขดำจัด พื้นหลังขาวจัด
+    const imgData = ctx.getImageData(0, 0, 400, 200);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+        // คำนวณความสว่างเฉลี่ย
+        let avg = (d[i] + d[i+1] + d[i+2]) / 3;
+        // ถ้ามืดกว่าเกณฑ์ (เป็นตัวเลข) ให้เป็นสีดำสนิท ถ้าสว่างกว่าให้เป็นขาวสนิท
+        let val = avg < 100 ? 0 : 255; 
+        d[i] = d[i+1] = d[i+2] = val;
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const processedImage = tempCanvas.toDataURL('image/png');
 
     try {
-        const result = await Tesseract.recognize(imageData, 'eng', {
-            tessedit_char_whitelist: '0123456789.'
+        const result = await Tesseract.recognize(processedImage, 'eng', {
+            tessedit_char_whitelist: '0123456789.',
+            tessedit_pageseg_mode: '7' // โหมดสำหรับอ่านบรรทัดเดียวโดยเฉพาะ
         });
         
         let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
@@ -166,11 +180,11 @@ async function scanThermometer() {
             currentTemp = val.toFixed(1);
             showSavePopup();
         } else {
-            alert(`ค่าที่อ่านได้ "${detectedText}" ไม่อยู่ในเกณฑ์ที่กำหนด\nกรุณาเล็งใหม่หรือพิมพ์แก้ไขเองในหน้าถัดไป`);
+            alert(`อ่านได้ค่า "${detectedText}"\nกรุณาเล็งให้ชัด หรือพิมพ์แก้ไขเอง`);
             showSavePopup(detectedText); 
         }
     } catch (e) {
-        alert("OCR Error: กรุณากรอกอุณหภูมิด้วยตนเอง");
+        alert("OCR Error: กรุณากรอกเอง");
         showSavePopup();
     }
     
