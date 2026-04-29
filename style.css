@@ -358,3 +358,20 @@ td {
     transform: translateY(100%);
   }
 }
+/* กรอบสำหรับสแกนปรอท */
+.temp-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70%;  /* กว้างกว่ากรอบขวด */
+  height: 20%; /* เตี้ยกว่าเพื่อให้เหมาะกับหน้าจอปรอท */
+  border: 2px dashed var(--accent); /* สีฟ้า */
+  border-radius: 8px;
+  display: none;
+  z-index: 10;
+}
+
+.temp-guide.show {
+  display: block;
+}
