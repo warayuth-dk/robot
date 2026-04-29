@@ -11,9 +11,10 @@ const LEVELS = [
 
 let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
+let currentZoom = 1; // ตัวแปรเก็บระดับซูม
 let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
 let currentTemp = "";
-let lastOCRTime = 0; // สำหรับหน่วงเวลา OCR ไม่ให้ทำงานหนักเกินไป
+let lastOCRTime = 0;
 let isOCRProcessing = false;
 
 const video = document.getElementById("video");
@@ -64,7 +65,6 @@ function loop(now) {
             analyzeColor();
         }
         else if (state === "SCAN_TEMP") {
-            // ทำงาน OCR ทุกๆ 1 วินาที (ไม่รันทุกเฟรมเพื่อป้องกันเครื่องค้าง)
             if (now - lastOCRTime > 1000 && !isOCRProcessing) {
                 lastOCRTime = now;
                 runLiveOCR();
@@ -122,24 +122,22 @@ function analyzeColor() {
     document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
 }
 
-// ================= LIVE OCR (Real-time Thermometer) =================
+// ================= LIVE OCR (Thermometer) =================
 
 async function runLiveOCR() {
     isOCRProcessing = true;
     const liveText = document.getElementById("liveText");
-    liveText.innerText = "กำลังอ่านอุณหภูมิ...";
 
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 400; tempCanvas.height = 200;
     const ctx = tempCanvas.getContext('2d');
     
-    // 1. Crop ภาพปรอทและทำ Thresholding
     ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 400, 200);
     const imgData = ctx.getImageData(0, 0, 400, 200);
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
         let brightness = (d[i] + d[i+1] + d[i+2]) / 3;
-        let val = brightness < 115 ? 0 : 255; // ปรับ Contrast
+        let val = brightness < 115 ? 0 : 255;
         d[i] = d[i+1] = d[i+2] = val;
     }
     ctx.putImageData(imgData, 0, 0);
@@ -165,6 +163,45 @@ async function runLiveOCR() {
     isOCRProcessing = false;
 }
 
+// ================= ZOOM & FLASH =================
+
+async function toggleZoom() {
+    if (!cameraStream) return;
+    const track = cameraStream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+
+    if (!capabilities.zoom) {
+        alert("อุปกรณ์ของคุณไม่รองรับการซูมแบบ Digital");
+        return;
+    }
+
+    // วนลูปซูม: 1x -> 2x -> 3x -> 1x
+    const min = capabilities.zoom.min || 1;
+    const max = capabilities.zoom.max || 3;
+    const step = (max - min) / 2;
+
+    currentZoom += step;
+    if (currentZoom > max) currentZoom = min;
+
+    try {
+        await track.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+        document.getElementById("btnZoom").innerText = `🔍 ซูม: ${currentZoom.toFixed(1)}x`;
+    } catch (e) {
+        console.error("Zoom Error:", e);
+    }
+}
+
+async function toggleFlash() {
+    if (!cameraStream) return;
+    const track = cameraStream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    if (!capabilities.torch) return alert("ไม่รองรับแฟลช");
+    isFlashOn = !isFlashOn;
+    await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+}
+
+// ================= SNAP & SAVE =================
+
 function takePhoto() {
     if (state === "SNAP_BOTTLE") {
         document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
@@ -172,7 +209,7 @@ function takePhoto() {
         document.getElementById("stepTag").textContent = "STEP 3: เล็งหน้าจอปรอท";
         document.getElementById("bottleGuide").classList.remove("show");
         document.getElementById("tempGuide").classList.add("show");
-        document.getElementById("displayUserName").innerText = "เล็งให้ตัวเลขอยู่กลางกรอบสีฟ้า";
+        document.getElementById("displayUserName").innerText = "เล็งกรอบสีฟ้าไปที่ตัวเลขปรอท (ใช้ปุ่มซูมช่วยได้)";
         document.getElementById("btnSnap").innerText = "💾 ยืนยันค่าอุณหภูมินี้";
     } else if (state === "SCAN_TEMP") {
         showSavePopup();
@@ -245,13 +282,6 @@ function renderHistory() {
 }
 
 function resetApp() { location.reload(); }
-
-async function toggleFlash() {
-    if (!cameraStream) return;
-    const track = cameraStream.getVideoTracks()[0];
-    isFlashOn = !isFlashOn;
-    await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
-}
 
 function startClock() {
     setInterval(() => { 

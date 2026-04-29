@@ -375,3 +375,15 @@ td {
 .temp-guide.show {
   display: block;
 }
+.zoom-toggle {
+  position: absolute;
+  top: 12px;
+  right: 90px; /* ขยับมาทางซ้ายของปุ่มแฟลช */
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+}
