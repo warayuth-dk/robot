@@ -13,8 +13,6 @@ let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
 let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
 let currentTemp = "";
-let lastOCRTime = 0;
-let isOCRProcessing = false;
 
 const video = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
@@ -49,7 +47,7 @@ async function initCamera() {
 }
 
 // ================= CORE LOOP =================
-function loop(now) {
+function loop() {
     if (state === "COMPLETED") return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
@@ -62,13 +60,6 @@ function loop(now) {
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
-        }
-        else if (state === "SCAN_TEMP") {
-            // Live OCR ทุก 1 วินาที
-            if (now - lastOCRTime > 1000 && !isOCRProcessing) {
-                lastOCRTime = now;
-                runLiveOCR();
-            }
         }
     }
     requestAnimationFrame(loop);
@@ -89,6 +80,7 @@ function handleQRCode(data) {
         document.getElementById("bottleGuide").classList.add("show");
         document.getElementById("liveStatusBadge").classList.add("show");
         document.getElementById("btnSnap").style.display = "flex";
+        document.getElementById("btnSnap").innerText = "📸 ถ่ายภาพขวดปัสสาวะ";
     } catch (e) { console.log("QR Format Error"); }
 }
 
@@ -122,46 +114,60 @@ function analyzeColor() {
     document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
 }
 
-// ================= IMPROVED LIVE OCR (Thermometer) =================
+// ================= STEP ACTIONS =================
 
-async function runLiveOCR() {
-    isOCRProcessing = true;
-    const liveText = document.getElementById("liveText");
-    const liveDot = document.getElementById("liveDot");
-
-    // สร้าง Canvas สำหรับประมวลผลรูปภาพ (Upscaling)
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 600; 
-    tempCanvas.height = 300;
-    const ctx = tempCanvas.getContext('2d');
-    
-    // Crop และขยายภาพหน้าจอปรอท
-    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 600, 300);
-    
-    // 🟢 กระบวนการแต่งรูป (Image Processing)
-    const imgData = ctx.getImageData(0, 0, 600, 300);
-    const d = imgData.data;
-    
-    // ใช้เกณฑ์ความสว่างแบบ Adaptive (คำนวณจากความสว่างเฉลี่ยของภาพ)
-    let totalBrightness = 0;
-    for (let i = 0; i < d.length; i += 4) {
-        totalBrightness += (d[i] + d[i+1] + d[i+2]) / 3;
+function takePhoto() {
+    if (state === "SNAP_BOTTLE") {
+        // 1. ถ่ายรูปขวดเสร็จ ล็อคค่าสีไว้
+        document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
+        
+        // 2. เปลี่ยน Step ไปถ่ายรูปปรอท
+        state = "SNAP_TEMP_PHOTO";
+        document.getElementById("stepTag").textContent = "STEP 3: ถ่ายรูปหน้าจอปรอท";
+        document.getElementById("displayUserName").innerText = "ถือปรอทให้นิ่งที่สุด เล็งตัวเลขให้เข้ากรอบสีฟ้า";
+        document.getElementById("bottleGuide").classList.remove("show");
+        document.getElementById("tempGuide").classList.add("show");
+        document.getElementById("liveStatusBadge").classList.remove("show");
+        document.getElementById("btnSnap").innerText = "📸 ถ่ายรูปปรอท (เน้นตัวเลขชัดๆ)";
+    } 
+    else if (state === "SNAP_TEMP_PHOTO") {
+        processStaticOCR(); // เรียกฟังก์ชันประมวลผลจากรูปถ่าย
     }
-    const avgBrightness = totalBrightness / (d.length / 4);
-    const threshold = avgBrightness * 0.85; // ตั้งค่า Threshold ให้เข้มกว่าค่าเฉลี่ยเล็กน้อยเพื่อจับตัวเลขดำ
+}
 
+// 🏆 ฟังก์ชัน OCR จากรูปถ่าย (Static Image Processing)
+async function processStaticOCR() {
+    const snapBtn = document.getElementById("btnSnap");
+    snapBtn.innerText = "⌛ กำลังประมวลผล AI...";
+    snapBtn.disabled = true;
+
+    // 1. สร้าง Canvas คุณภาพสูงสำหรับการทำ OCR
+    const ocrCanvas = document.createElement('canvas');
+    ocrCanvas.width = 800; // ขยายใหญ่เพื่อให้ AI เห็นรายละเอียดขีดชัดเจน
+    ocrCanvas.height = 400;
+    const ctx = ocrCanvas.getContext('2d');
+
+    // 2. Crop เฉพาะส่วนที่เป็นปรอทจากเฟรมวิดีโอปัจจุบัน
+    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 800, 400);
+    
+    // 3. แต่งรูป (Image Enhancement)
+    const imgData = ctx.getImageData(0, 0, 800, 400);
+    const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
-        let b = (d[i] + d[i+1] + d[i+2]) / 3;
-        let val = b < threshold ? 0 : 255; // ทำเป็นขาว-ดำสนิท
+        let grayscale = (d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11);
+        // ทำ Thresholding ให้เข้ม (ตัวเลขดำ พื้นหลังขาว)
+        let val = grayscale < 120 ? 0 : 255; 
         d[i] = d[i+1] = d[i+2] = val;
     }
     ctx.putImageData(imgData, 0, 0);
 
+    const processedBlob = ocrCanvas.toDataURL('image/png');
+
     try {
-        const result = await Tesseract.recognize(tempCanvas.toDataURL(), 'eng', {
+        // 4. ส่งรูปที่แต่งแล้วให้ Tesseract วิเคราะห์
+        const result = await Tesseract.recognize(processedBlob, 'eng', {
             tessedit_char_whitelist: '0123456789.',
-            tessedit_pageseg_mode: '7', // มองเป็นบรรทัดเดียว
-            tessedit_ocr_engine_mode: '1' // ใช้ LSTM Engine ที่ฉลาดกว่า
+            tessedit_pageseg_mode: '7' // บรรทัดเดียว
         });
         
         let txt = result.data.text.trim().replace(/[^0-9.]/g, '');
@@ -169,35 +175,18 @@ async function runLiveOCR() {
 
         if (!isNaN(val) && val >= 34 && val <= 43) {
             currentTemp = val.toFixed(1);
-            liveText.innerText = `🌡️ ตรวจพบ: ${currentTemp}°C`;
-            liveDot.style.backgroundColor = "var(--accent2)";
-            document.getElementById("btnSnap").style.background = "var(--accent2)";
+            showSavePopup();
         } else {
-            liveText.innerText = `🔎 กำลังสแกน... (${txt})`;
-            liveDot.style.backgroundColor = "var(--danger)";
-            document.getElementById("btnSnap").style.background = "var(--warn)";
+            alert(`AI อ่านได้เป็น: "${txt}"\nซึ่งดูไม่ถูกต้อง กรุณาถ่ายใหม่ให้ชัดกว่าเดิม หรือกดตกลงเพื่อพิมพ์แก้ไขเอง`);
+            showSavePopup(txt); 
         }
     } catch (e) {
-        console.error("OCR Error", e);
-    }
-    isOCRProcessing = false;
-}
-
-// ================= SNAP & SAVE =================
-
-function takePhoto() {
-    if (state === "SNAP_BOTTLE") {
-        document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
-        state = "SCAN_TEMP";
-        document.getElementById("stepTag").textContent = "STEP 3: เล็งหน้าจอปรอท";
-        document.getElementById("bottleGuide").classList.remove("show");
-        document.getElementById("tempGuide").classList.add("show");
-        document.getElementById("displayUserName").innerText = "เล็งให้ตัวเลขอยู่กลางกรอบสีฟ้า (ถือให้นิ่ง)";
-        document.getElementById("btnSnap").innerText = "💾 ยืนยันค่าอุณหภูมินี้";
-        document.getElementById("liveStatusBadge").classList.add("show");
-    } else if (state === "SCAN_TEMP") {
+        alert("OCR ขัดข้อง กรุณาพิมพ์อุณหภูมิเอง");
         showSavePopup();
     }
+    
+    snapBtn.disabled = false;
+    snapBtn.innerText = "📸 ถ่ายรูปปรอทใหม่";
 }
 
 function showSavePopup(preFill = "") {
@@ -218,7 +207,7 @@ function showSavePopup(preFill = "") {
 
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
-    if(!temp || temp < 34 || temp > 43) return alert("กรุณาตรวจสอบอุณหภูมิ (34.0 - 43.0)");
+    if(!temp || temp < 34 || temp > 43) return alert("ตรวจสอบอุณหภูมิอีกครั้ง (34.0 - 43.0)");
     
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
@@ -243,16 +232,6 @@ async function confirmSave() {
 }
 
 // ================= UTILS =================
-
-async function toggleFlash() {
-    if (!cameraStream) return;
-    const track = cameraStream.getVideoTracks()[0];
-    const capabilities = track.getCapabilities();
-    if (!capabilities.torch) return alert("ไม่รองรับแฟลช");
-    isFlashOn = !isFlashOn;
-    await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
-}
-
 function getAvgRGB(x, y, size) {
     const data = canvas.getImageData(x - size/2, y - size/2, size, size).data;
     let r=0, g=0, b=0;
@@ -276,6 +255,13 @@ function renderHistory() {
 }
 
 function resetApp() { location.reload(); }
+
+async function toggleFlash() {
+    if (!cameraStream) return;
+    const track = cameraStream.getVideoTracks()[0];
+    isFlashOn = !isFlashOn;
+    await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+}
 
 function startClock() {
     setInterval(() => { 
