@@ -1,8 +1,11 @@
+// เพิ่ม Library OCR (ต้องมีการโหลด Tesseract.js ในไฟล์ HTML ด้วยผ่าน CDN)
+// <script src="https://unpkg.com/tesseract.js@v4.0.1/dist/tesseract.min.js"></script>
+
 // ================= CONFIG & DATA =================
 const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzkaX_ETSZP6iu4mBgg6M9LLlP6jaG98l9gNTvtVkzvd8d2gtnvp_XioH5sMQbLJTio0A/exec'; 
 
 const LEVELS = [
-  { lv: 0, name: "ใส", color: "#ffffff" },          // เน้นจูนตัวนี้เป็นพิเศษ
+  { lv: 0, name: "ใส", color: "#ffffff" },          
   { lv: 1, name: "เหลืองจาง", color: "#FEEFC6" },   
   { lv: 2, name: "เหลือง", color: "#FDD771" },       
   { lv: 3, name: "ส้ม/ขาดน้ำ", color: "#FFB300" },   
@@ -12,6 +15,7 @@ const LEVELS = [
 let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
 let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
+let currentTemp = "";
 
 const video = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
@@ -22,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHistory();
     startClock();
     autoStartCamera();
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('th-TH');
 });
 
 async function autoStartCamera() {
@@ -45,17 +48,22 @@ async function initCamera() {
     } catch(e) { alert("เปิดกล้องไม่ได้"); }
 }
 
-// ================= CORE LOGIC =================
+// ================= CORE LOOP =================
 function loop() {
     if (state === "COMPLETED") return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
         canvas.drawImage(video, 0, 0);
+
         if (state === "SCAN_QR") {
             const code = jsQR(canvas.getImageData(0,0,canvasElement.width,canvasElement.height).data, canvasElement.width, canvasElement.height);
             if (code) handleQRCode(code.data);
-        } else if (state === "SNAP_BOTTLE") {
+        } 
+        else if (state === "SNAP_BOTTLE") {
             analyzeColor();
+        } 
+        else if (state === "SCAN_TEMP") {
+            // ช่วงนี้รอกดปุ่ม Snap Temp หรืออ่าน OCR อัตโนมัติ (ถ้าต้องการ)
         }
     }
     requestAnimationFrame(loop);
@@ -68,95 +76,119 @@ function handleQRCode(data) {
         currentName = url.searchParams.get('name') || "Unknown";
         currentBuble = url.searchParams.get('Buble') || "-";
         document.getElementById("displayUserName").innerText = `ทหาร: ${currentName} (${currentNumber})`;
-        document.getElementById("targetNameDisplay").innerText = currentName;
         state = "SNAP_BOTTLE";
         document.getElementById("btnSnap").style.display = "flex";
         document.getElementById("bottleGuide").classList.add("show");
         document.getElementById("liveStatusBadge").classList.add("show");
-        document.getElementById("stepTag").textContent = "STEP 2: SNAP BOTTLE";
+        document.getElementById("stepTag").textContent = "STEP 2: ถ่ายรูปขวดปัสสาวะ";
     } catch (e) { console.log("QR Format Error"); }
 }
 
-// ================= CIELAB CONVERSION =================
+// ================= COLOR ANALYZE (Lab) =================
 function rgbToLab(r, g, b) {
     r /= 255; g /= 255; b /= 255;
     r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
     g = (g > 0.04045) ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
     b = (b > 0.04045) ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
-
     let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
     let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
     let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
-
     x /= 95.047; y /= 100.000; z /= 108.883;
     x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + (16 / 116);
     y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + (16 / 116);
     z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + (16 / 116);
-
     return { l: (116 * y) - 16, a: 500 * (x - y), b: 200 * (y - z) };
 }
 
-// ================= ANALYZE COLOR (TUNED FOR LV 0) =================
 function analyzeColor() {
-    const centerX = canvasElement.width / 2, centerY = canvasElement.height / 2;
-    const urineRGB = getAvgRGB(centerX, centerY, 30);
+    const urineRGB = getAvgRGB(canvasElement.width / 2, canvasElement.height / 2, 30);
     const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
-
     let lv = 1;
-
-    // --- จูนพิเศษสำหรับความใส (LV 0) ---
-    // ปรับให้ L (ความสว่าง) ยืดหยุ่นขึ้น และยอมรับค่า b (เหลืองสะท้อน) ได้ถึง 14
-    if (lab.l > 75 && lab.b < 25) {
-        lv = 0; 
-    }
-    else if (lab.l < 42) { 
-        lv = 4; 
-    }
-    else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) {
-        lv = 3; 
-    }
-    else if (lab.b > 28) {
-        lv = 2; 
-    }
-    else {
-        lv = 1; 
-    }
-
+    if (lab.l > 75 && lab.b < 25) lv = 0; 
+    else if (lab.l < 42) lv = 4; 
+    else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) lv = 3; 
+    else if (lab.b > 35) lv = 2; 
+    else lv = 1;
     currentLV = lv;
-    const info = LEVELS[lv];
-    
-    const liveText = document.getElementById("liveText");
-    const liveDot = document.getElementById("liveDot");
-    if(liveText) liveText.innerText = `LV.${lv} - ${info.name}`;
-    if(liveDot) liveDot.style.backgroundColor = info.color;
-    
-    const popupBadge = document.getElementById("popupColorBadge");
-    if(popupBadge) {
-        popupBadge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${lv})`;
-        popupBadge.style.backgroundColor = info.color;
-        popupBadge.style.color = (lv >= 3) ? "#fff" : "#000";
-    }
+    document.getElementById("liveText").innerText = `LV.${lv} - ${LEVELS[lv].name}`;
+    document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
 }
 
-// ================= SNAP & SAVE =================
+// ================= STEP TRANSITIONS =================
+
+// กดถ่ายรูปขวด -> ไปขั้นตอนสแกนปรอท
 function takePhoto() {
+    // บันทึกรูปขวดเก็บไว้
     document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
-    document.getElementById("dataPopup").classList.add("show");
-    document.getElementById("btnSnap").style.display = "none";
-    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    
+    // เปลี่ยนสถานะไปสแกนปรอท
+    state = "SCAN_TEMP";
+    document.getElementById("bottleGuide").classList.remove("show");
+    document.getElementById("tempGuide").classList.add("show"); // ต้องมีกรอบใหม่สำหรับปรอทใน HTML
+    document.getElementById("stepTag").textContent = "STEP 3: สแกนเลขปรอท";
+    document.getElementById("btnSnap").onclick = scanThermometer; // เปลี่ยนหน้าที่ปุ่ม
+}
+
+// ฟังก์ชันสแกนตัวเลขจากปรอท
+async function scanThermometer() {
+    const statusEl = document.getElementById("syncStatus");
+    statusEl.innerText = "กำลังอ่านค่าตัวเลข...";
+    
+    // ถ่ายภาพเฉพาะส่วนหน้าจอปรอท (Crop)
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 300;
+    tempCanvas.height = 150;
+    const ctx = tempCanvas.getContext('2d');
+    // วาดรูปจากกลางจอ
+    ctx.drawImage(video, (video.videoWidth-300)/2, (video.videoHeight-150)/2, 300, 150, 0, 0, 300, 150);
+    
+    const imageData = tempCanvas.toDataURL('image/png');
+
+    try {
+        // ใช้ Tesseract.js อ่านค่า
+        const result = await Tesseract.recognize(imageData, 'eng', {
+            tessedit_char_whitelist: '0123456789.' // ให้อ่านเฉพาะตัวเลขและจุด
+        });
+        
+        let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
+        
+        // ตรวจสอบว่าเป็นตัวเลขอุณหภูมิที่สมเหตุสมผลหรือไม่ (35-42)
+        let val = parseFloat(detectedText);
+        if (!isNaN(val) && val >= 35 && val <= 42) {
+            currentTemp = val.toFixed(1);
+            showSavePopup();
+        } else {
+            alert("อ่านค่าไม่ได้หรือค่าผิดปกติ (" + detectedText + ") กรุณาลองใหม่ หรือพิมพ์เอง");
+            showSavePopup(detectedText); // เปิดป๊อปอัพให้แก้เอง
+        }
+    } catch (e) {
+        alert("ระบบสแกนขัดข้อง กรุณาพิมพ์เอง");
+        showSavePopup();
+    }
+    statusEl.innerText = "";
+}
+
+function showSavePopup(preFill = "") {
     state = "COMPLETED";
-    setTimeout(() => document.getElementById("modalBodyTemp").focus(), 400);
+    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    
+    document.getElementById("dataPopup").classList.add("show");
+    document.getElementById("modalBodyTemp").value = currentTemp || preFill;
+    
+    const info = LEVELS[currentLV];
+    const badge = document.getElementById("popupColorBadge");
+    badge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${currentLV})`;
+    badge.style.backgroundColor = info.color;
 }
 
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
-    if(!temp || temp < 35 || temp > 42) return alert("กรอกอุณหภูมิที่ถูกต้อง (35.0 - 42.0)");
+    if(!temp || temp < 35 || temp > 42) return alert("กรุณาใส่อุณหภูมิที่ถูกต้อง (35.0 - 42.0)");
     
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
         Number: currentNumber, 
         name: currentName, 
-        buble: currentBuble, 
         temp: temp, 
         level: currentLV, 
         status: LEVELS[currentLV].name, 
@@ -168,8 +200,8 @@ async function confirmSave() {
         historyData.unshift(record);
         localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
-        alert("บันทึกสำเร็จ");
-        resetApp();
+        alert("บันทึกข้อมูลเรียบร้อย");
+        location.reload();
     } catch { alert("บันทึกล้มเหลว"); }
 }
 
@@ -178,37 +210,14 @@ function getAvgRGB(x, y, size) {
     const data = canvas.getImageData(x - size/2, y - size/2, size, size).data;
     let r=0, g=0, b=0;
     for (let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
-    const pixels = data.length / 4;
-    return [r/pixels, g/pixels, b/pixels];
+    return [r/(data.length/4), g/(data.length/4), b/(data.length/4)];
 }
 
 function renderHistory() {
   const body = document.getElementById("historyBody");
-  if (!body) return;
-  body.innerHTML = historyData.map(r => `
-    <tr>
-      <td>${r.date}</td>
-      <td>${r.time}</td>
-      <td>${r.Number}</td>
-      <td>${r.name}</td>
-      <td>${r.temp}°</td>
-      <td style="font-weight:bold; color:${LEVELS[r.level].lv >= 3 ? '#e67e22' : '#2ecc71'}">LV.${r.level}</td>
-    </tr>
-  `).join('');
-}
-
-function resetApp() { location.reload(); }
-
-async function toggleFlash() {
-    if (!cameraStream) return;
-    const track = cameraStream.getVideoTracks()[0];
-    isFlashOn = !isFlashOn;
-    await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+  if (body) body.innerHTML = historyData.map(r => `<tr><td>${r.date}</td><td>${r.Number}</td><td>${r.temp}°</td><td>LV.${r.level}</td></tr>`).join('');
 }
 
 function startClock() {
-    setInterval(() => { 
-        const el = document.getElementById('clock');
-        if(el) el.textContent = new Date().toLocaleTimeString('th-TH'); 
-    }, 1000);
+    setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('th-TH'); }, 1000);
 }
