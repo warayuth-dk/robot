@@ -13,6 +13,8 @@ let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
 let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
 let currentTemp = "";
+let lastOCRTime = 0; // สำหรับหน่วงเวลา OCR ไม่ให้ทำงานหนักเกินไป
+let isOCRProcessing = false;
 
 const video = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
@@ -47,7 +49,7 @@ async function initCamera() {
 }
 
 // ================= CORE LOOP =================
-function loop() {
+function loop(now) {
     if (state === "COMPLETED") return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
@@ -60,6 +62,13 @@ function loop() {
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
+        }
+        else if (state === "SCAN_TEMP") {
+            // ทำงาน OCR ทุกๆ 1 วินาที (ไม่รันทุกเฟรมเพื่อป้องกันเครื่องค้าง)
+            if (now - lastOCRTime > 1000 && !isOCRProcessing) {
+                lastOCRTime = now;
+                runLiveOCR();
+            }
         }
     }
     requestAnimationFrame(loop);
@@ -113,78 +122,61 @@ function analyzeColor() {
     document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
 }
 
-// ================= STEP TRANSITIONS =================
+// ================= LIVE OCR (Real-time Thermometer) =================
 
-function takePhoto() {
-    document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
-    state = "SCAN_TEMP";
-    document.getElementById("stepTag").textContent = "STEP 3: สแกนเลขปรอท";
-    document.getElementById("displayUserName").innerText = "วางหน้าจอปรอทในกรอบสีฟ้า (เน้นให้ชัด)";
-    document.getElementById("bottleGuide").classList.remove("show");
-    const tempGuide = document.getElementById("tempGuide");
-    if(tempGuide) tempGuide.classList.add("show");
-    document.getElementById("liveStatusBadge").classList.remove("show");
+async function runLiveOCR() {
+    isOCRProcessing = true;
+    const liveText = document.getElementById("liveText");
+    liveText.innerText = "กำลังอ่านอุณหภูมิ...";
 
-    const snapBtn = document.getElementById("btnSnap");
-    snapBtn.innerText = "🔍 สแกนตัวเลขจากปรอท";
-    snapBtn.onclick = scanThermometer;
-}
-
-// 🏆 ฟังก์ชัน OCR ขั้นสูง (Advanced Digital Scan)
-async function scanThermometer() {
-    const snapBtn = document.getElementById("btnSnap");
-    snapBtn.innerText = "⌛ วิเคราะห์ตัวเลข...";
-    snapBtn.disabled = true;
-
-    // 1. สร้าง Canvas ความละเอียดสูง (Upscaling เพื่อให้ AI เห็นขีดชัดขึ้น)
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 600;  // ขยายจากเดิม 400
-    tempCanvas.height = 300; // ขยายจากเดิม 200
+    tempCanvas.width = 400; tempCanvas.height = 200;
     const ctx = tempCanvas.getContext('2d');
-
-    // 2. Crop และขยายภาพ (Zoom)
-    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 600, 300);
     
-    // 3. Image Pre-processing (Adaptive Binarization)
-    const imgData = ctx.getImageData(0, 0, 600, 300);
+    // 1. Crop ภาพปรอทและทำ Thresholding
+    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 400, 200);
+    const imgData = ctx.getImageData(0, 0, 400, 200);
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
-        // คำนวณความสว่างพิกเซล (Grayscale)
-        let brightness = (d[i] * 0.34 + d[i+1] * 0.5 + d[i+2] * 0.16);
-        // เพิ่ม Contrast: ถ้ามืด (ตัวเลข) ให้ดำสนิท ถ้าสว่าง (หน้าจอ/เงาสะท้อน) ให้ขาวสนิท
-        let val = brightness < 110 ? 0 : 255; 
+        let brightness = (d[i] + d[i+1] + d[i+2]) / 3;
+        let val = brightness < 115 ? 0 : 255; // ปรับ Contrast
         d[i] = d[i+1] = d[i+2] = val;
     }
     ctx.putImageData(imgData, 0, 0);
 
-    const processedImage = tempCanvas.toDataURL('image/png');
-
     try {
-        // 4. สั่งอ่านค่าด้วยโหมด "Single Line" และ "Whitelisting"
-        const result = await Tesseract.recognize(processedImage, 'eng', {
-            tessedit_char_whitelist: '0123456789.', // อ่านแค่เลขและจุด
-            tessedit_pageseg_mode: '7',            // บังคับโหมดอ่านบรรทัดเดียว (แม่นยำที่สุดสำหรับปรอท)
+        const result = await Tesseract.recognize(tempCanvas.toDataURL(), 'eng', {
+            tessedit_char_whitelist: '0123456789.',
+            tessedit_pageseg_mode: '7'
         });
         
-        let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
-        let val = parseFloat(detectedText);
+        let txt = result.data.text.trim().replace(/[^0-9.]/g, '');
+        let val = parseFloat(txt);
 
-        // 5. ตรวจสอบเงื่อนไขอุณหภูมิคน (34-43 องศา)
         if (!isNaN(val) && val >= 34 && val <= 43) {
             currentTemp = val.toFixed(1);
-            showSavePopup();
+            liveText.innerText = `🌡️ ตรวจพบ: ${currentTemp}°C`;
+            document.getElementById("liveDot").style.backgroundColor = "var(--accent2)";
         } else {
-            // ถ้าอ่านพลาด จะขึ้นรูปที่ผ่านการแต่งแล้วให้เห็นว่าทำไมถึงพลาด (ใช้ Debug ได้)
-            alert(`AI อ่านได้ค่า "${detectedText}"\nกรุณาเอียงหลบแสงสะท้อนและเล็งให้ตัวเลขอยู่กลางกรอบ`);
-            showSavePopup(detectedText); 
+            liveText.innerText = `🔎 กำลังเล็ง... (${txt})`;
+            document.getElementById("liveDot").style.backgroundColor = "var(--danger)";
         }
-    } catch (e) {
-        alert("OCR ขัดข้อง: กรุณาพิมพ์แก้ไขเองในขั้นตอนถัดไป");
+    } catch (e) {}
+    isOCRProcessing = false;
+}
+
+function takePhoto() {
+    if (state === "SNAP_BOTTLE") {
+        document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
+        state = "SCAN_TEMP";
+        document.getElementById("stepTag").textContent = "STEP 3: เล็งหน้าจอปรอท";
+        document.getElementById("bottleGuide").classList.remove("show");
+        document.getElementById("tempGuide").classList.add("show");
+        document.getElementById("displayUserName").innerText = "เล็งให้ตัวเลขอยู่กลางกรอบสีฟ้า";
+        document.getElementById("btnSnap").innerText = "💾 ยืนยันค่าอุณหภูมินี้";
+    } else if (state === "SCAN_TEMP") {
         showSavePopup();
     }
-    
-    snapBtn.disabled = false;
-    snapBtn.innerText = "🔍 สแกนตัวเลขจากปรอท";
 }
 
 function showSavePopup(preFill = "") {
@@ -217,9 +209,7 @@ async function confirmSave() {
         time: new Date().toLocaleTimeString('th-TH') 
     };
 
-    const spinner = document.getElementById("syncSpinner");
-    if(spinner) spinner.style.display = "block";
-
+    document.getElementById("syncSpinner").style.display = "block";
     try {
         await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
         historyData.unshift(record);
@@ -228,7 +218,7 @@ async function confirmSave() {
         alert("บันทึกข้อมูลเรียบร้อย");
         resetApp();
     } catch { alert("บันทึกล้มเหลว"); }
-    if(spinner) spinner.style.display = "none";
+    document.getElementById("syncSpinner").style.display = "none";
 }
 
 // ================= UTILS =================
@@ -236,8 +226,7 @@ function getAvgRGB(x, y, size) {
     const data = canvas.getImageData(x - size/2, y - size/2, size, size).data;
     let r=0, g=0, b=0;
     for (let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
-    const pixels = data.length / 4;
-    return [r/pixels, g/pixels, b/pixels];
+    return [r/(data.length/4), g/(data.length/4), b/(data.length/4)];
 }
 
 function renderHistory() {
