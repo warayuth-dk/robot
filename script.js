@@ -36,7 +36,7 @@ async function autoStartCamera() {
 async function initCamera() {
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: { ideal: 720 }, height: { ideal: 720 } } 
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
         });
         video.srcObject = cameraStream;
         await video.play();
@@ -103,13 +103,11 @@ function analyzeColor() {
     const urineRGB = getAvgRGB(canvasElement.width / 2, canvasElement.height / 2, 30);
     const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
     let lv = 1;
-
     if (lab.l > 75 && lab.b < 25) lv = 0; 
     else if (lab.l < 42) lv = 4; 
     else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) lv = 3; 
     else if (lab.b > 35) lv = 2; 
     else lv = 1;
-
     currentLV = lv;
     document.getElementById("liveText").innerText = `LV.${lv} - ${LEVELS[lv].name}`;
     document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
@@ -118,49 +116,43 @@ function analyzeColor() {
 // ================= STEP TRANSITIONS =================
 
 function takePhoto() {
-    // บันทึกรูปขวด
     document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
-    
-    // เปลี่ยน Step ไปสแกนปรอท
     state = "SCAN_TEMP";
     document.getElementById("stepTag").textContent = "STEP 3: สแกนเลขปรอท";
-    document.getElementById("displayUserName").innerText = "วางหน้าจอปรอทในกรอบสีฟ้า";
-    
-    // สลับ Guide
+    document.getElementById("displayUserName").innerText = "วางหน้าจอปรอทในกรอบสีฟ้า (เน้นให้ชัด)";
     document.getElementById("bottleGuide").classList.remove("show");
     const tempGuide = document.getElementById("tempGuide");
     if(tempGuide) tempGuide.classList.add("show");
-    
-    // ปิด Live Color Badge
     document.getElementById("liveStatusBadge").classList.remove("show");
 
-    // เปลี่ยนหน้าที่ปุ่ม
     const snapBtn = document.getElementById("btnSnap");
     snapBtn.innerText = "🔍 สแกนตัวเลขจากปรอท";
     snapBtn.onclick = scanThermometer;
 }
 
+// 🏆 ฟังก์ชัน OCR ขั้นสูง (Advanced Digital Scan)
 async function scanThermometer() {
     const snapBtn = document.getElementById("btnSnap");
-    snapBtn.innerText = "⌛ กำลังอ่านค่า...";
+    snapBtn.innerText = "⌛ วิเคราะห์ตัวเลข...";
     snapBtn.disabled = true;
 
+    // 1. สร้าง Canvas ความละเอียดสูง (Upscaling เพื่อให้ AI เห็นขีดชัดขึ้น)
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 400;
-    tempCanvas.height = 200;
+    tempCanvas.width = 600;  // ขยายจากเดิม 400
+    tempCanvas.height = 300; // ขยายจากเดิม 200
     const ctx = tempCanvas.getContext('2d');
+
+    // 2. Crop และขยายภาพ (Zoom)
+    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 600, 300);
     
-    // 1. Crop รูปจากกลางจอ
-    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 400, 200);
-    
-    // 🟢 เพิ่ม: การปรับแต่งภาพ (Thresholding) ให้ตัวเลขดำจัด พื้นหลังขาวจัด
-    const imgData = ctx.getImageData(0, 0, 400, 200);
+    // 3. Image Pre-processing (Adaptive Binarization)
+    const imgData = ctx.getImageData(0, 0, 600, 300);
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
-        // คำนวณความสว่างเฉลี่ย
-        let avg = (d[i] + d[i+1] + d[i+2]) / 3;
-        // ถ้ามืดกว่าเกณฑ์ (เป็นตัวเลข) ให้เป็นสีดำสนิท ถ้าสว่างกว่าให้เป็นขาวสนิท
-        let val = avg < 100 ? 0 : 255; 
+        // คำนวณความสว่างพิกเซล (Grayscale)
+        let brightness = (d[i] * 0.34 + d[i+1] * 0.5 + d[i+2] * 0.16);
+        // เพิ่ม Contrast: ถ้ามืด (ตัวเลข) ให้ดำสนิท ถ้าสว่าง (หน้าจอ/เงาสะท้อน) ให้ขาวสนิท
+        let val = brightness < 110 ? 0 : 255; 
         d[i] = d[i+1] = d[i+2] = val;
     }
     ctx.putImageData(imgData, 0, 0);
@@ -168,23 +160,26 @@ async function scanThermometer() {
     const processedImage = tempCanvas.toDataURL('image/png');
 
     try {
+        // 4. สั่งอ่านค่าด้วยโหมด "Single Line" และ "Whitelisting"
         const result = await Tesseract.recognize(processedImage, 'eng', {
-            tessedit_char_whitelist: '0123456789.',
-            tessedit_pageseg_mode: '7' // โหมดสำหรับอ่านบรรทัดเดียวโดยเฉพาะ
+            tessedit_char_whitelist: '0123456789.', // อ่านแค่เลขและจุด
+            tessedit_pageseg_mode: '7',            // บังคับโหมดอ่านบรรทัดเดียว (แม่นยำที่สุดสำหรับปรอท)
         });
         
         let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
         let val = parseFloat(detectedText);
 
+        // 5. ตรวจสอบเงื่อนไขอุณหภูมิคน (34-43 องศา)
         if (!isNaN(val) && val >= 34 && val <= 43) {
             currentTemp = val.toFixed(1);
             showSavePopup();
         } else {
-            alert(`อ่านได้ค่า "${detectedText}"\nกรุณาเล็งให้ชัด หรือพิมพ์แก้ไขเอง`);
+            // ถ้าอ่านพลาด จะขึ้นรูปที่ผ่านการแต่งแล้วให้เห็นว่าทำไมถึงพลาด (ใช้ Debug ได้)
+            alert(`AI อ่านได้ค่า "${detectedText}"\nกรุณาเอียงหลบแสงสะท้อนและเล็งให้ตัวเลขอยู่กลางกรอบ`);
             showSavePopup(detectedText); 
         }
     } catch (e) {
-        alert("OCR Error: กรุณากรอกเอง");
+        alert("OCR ขัดข้อง: กรุณาพิมพ์แก้ไขเองในขั้นตอนถัดไป");
         showSavePopup();
     }
     
@@ -201,9 +196,11 @@ function showSavePopup(preFill = "") {
     
     const info = LEVELS[currentLV];
     const badge = document.getElementById("popupColorBadge");
-    badge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${currentLV})`;
-    badge.style.backgroundColor = info.color;
-    badge.style.color = (currentLV >= 3) ? "#fff" : "#000";
+    if(badge) {
+        badge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${currentLV})`;
+        badge.style.backgroundColor = info.color;
+        badge.style.color = (currentLV >= 3) ? "#fff" : "#000";
+    }
 }
 
 async function confirmSave() {
@@ -220,7 +217,9 @@ async function confirmSave() {
         time: new Date().toLocaleTimeString('th-TH') 
     };
 
-    document.getElementById("syncSpinner").style.display = "block";
+    const spinner = document.getElementById("syncSpinner");
+    if(spinner) spinner.style.display = "block";
+
     try {
         await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
         historyData.unshift(record);
@@ -229,7 +228,7 @@ async function confirmSave() {
         alert("บันทึกข้อมูลเรียบร้อย");
         resetApp();
     } catch { alert("บันทึกล้มเหลว"); }
-    document.getElementById("syncSpinner").style.display = "none";
+    if(spinner) spinner.style.display = "none";
 }
 
 // ================= UTILS =================
