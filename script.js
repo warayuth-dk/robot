@@ -12,10 +12,11 @@ const LEVELS = [
 let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
 let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
+let lastQRScanTime = 0; // สำหรับหน่วงเวลาสแกน QR
 
 const video = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
-const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
+const canvas = canvasElement.getContext("2d", { alpha: false, willReadFrequently: true });
 
 // ================= INIT =================
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +35,11 @@ async function autoStartCamera() {
 
 async function initCamera() {
     try {
+        // เคลียร์ Stream เก่าถ้ามี
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+        }
+
         cameraStream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
         });
@@ -46,16 +52,22 @@ async function initCamera() {
 }
 
 // ================= CORE LOOP =================
-function loop() {
+function loop(time) {
     if (state === "COMPLETED") return;
+    
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
+        canvasElement.width = video.videoWidth; 
+        canvasElement.height = video.videoHeight;
         canvas.drawImage(video, 0, 0);
 
         if (state === "SCAN_QR") {
-            const imageData = canvas.getImageData(0,0,canvasElement.width,canvasElement.height);
-            const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
-            if (code) handleQRCode(code.data);
+            // 🔥 ป้องกัน Frame Drop: สแกน QR ทุกๆ 250ms (4 ครั้งต่อวินาที)
+            if (time - lastQRScanTime > 250) {
+                lastQRScanTime = time;
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
+                if (code) handleQRCode(code.data);
+            }
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
@@ -104,7 +116,6 @@ function analyzeColor() {
     const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
     let lv = 1;
 
-    // จูนตามค่ามาตรฐาน Lab ที่ดีที่สุด
     if (lab.l > 75 && lab.b < 25) lv = 0; 
     else if (lab.l < 42) lv = 4; 
     else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) lv = 3; 
@@ -119,11 +130,11 @@ function analyzeColor() {
 // ================= SNAP & SAVE =================
 
 function takePhoto() {
-    // 1. เก็บรูปถ่ายขวด
     document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
     
-    // 2. หยุดกล้องและแสดง Popup สำหรับกรอกอุณหภูมิ (Manual)
-    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+    }
     state = "COMPLETED";
 
     document.getElementById("dataPopup").classList.add("show");
@@ -131,7 +142,6 @@ function takePhoto() {
     document.getElementById("bottleGuide").classList.remove("show");
     document.getElementById("liveStatusBadge").classList.remove("show");
 
-    // อัปเดตข้อมูลระดับสีใน Popup
     const info = LEVELS[currentLV];
     const badge = document.getElementById("popupColorBadge");
     if(badge) {
@@ -140,7 +150,6 @@ function takePhoto() {
         badge.style.color = (currentLV >= 3) ? "#fff" : "#000";
     }
 
-    // เลื่อนไปที่ช่องกรอกอุณหภูมิ
     setTimeout(() => document.getElementById("modalBodyTemp").focus(), 400);
 }
 
@@ -199,7 +208,10 @@ function renderHistory() {
   `).join('');
 }
 
-function resetApp() { location.reload(); }
+function resetApp() { 
+    // ใช้ reload เพื่อเคลียร์หน่วยความจำทั้งหมดก่อนเริ่มรอบใหม่
+    location.reload(); 
+}
 
 async function toggleFlash() {
     if (!cameraStream) return;
