@@ -357,6 +357,7 @@ td {
   from {
     transform: translateY(100%);
   }
+<<<<<<< HEAD
 }
 /* กรอบสำหรับสแกนปรอท */
 .temp-guide {
@@ -375,3 +376,6 @@ td {
 .temp-guide.show {
   display: block;
 }
+=======
+}
+>>>>>>> parent of 4ddd91a (fix all code)

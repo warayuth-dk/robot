@@ -1,3 +1,6 @@
+// เพิ่ม Library OCR (ต้องมีการโหลด Tesseract.js ในไฟล์ HTML ด้วยผ่าน CDN)
+// <script src="https://unpkg.com/tesseract.js@v4.0.1/dist/tesseract.min.js"></script>
+
 // ================= CONFIG & DATA =================
 const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzkaX_ETSZP6iu4mBgg6M9LLlP6jaG98l9gNTvtVkzvd8d2gtnvp_XioH5sMQbLJTio0A/exec'; 
 
@@ -23,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHistory();
     startClock();
     autoStartCamera();
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('th-TH');
 });
 
 async function autoStartCamera() {
@@ -61,6 +63,7 @@ function loop(time) {
         canvas.drawImage(video, 0, 0);
 
         if (state === "SCAN_QR") {
+<<<<<<< HEAD
             // 🔥 ป้องกัน Frame Drop: สแกน QR ทุกๆ 250ms (4 ครั้งต่อวินาที)
             if (time - lastQRScanTime > 250) {
                 lastQRScanTime = time;
@@ -68,9 +71,16 @@ function loop(time) {
                 const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
                 if (code) handleQRCode(code.data);
             }
+=======
+            const code = jsQR(canvas.getImageData(0,0,canvasElement.width,canvasElement.height).data, canvasElement.width, canvasElement.height);
+            if (code) handleQRCode(code.data);
+>>>>>>> parent of 4ddd91a (fix all code)
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
+        } 
+        else if (state === "SCAN_TEMP") {
+            // ช่วงนี้รอกดปุ่ม Snap Temp หรืออ่าน OCR อัตโนมัติ (ถ้าต้องการ)
         }
     }
     requestAnimationFrame(loop);
@@ -82,20 +92,25 @@ function handleQRCode(data) {
         currentNumber = url.searchParams.get('Number') || "-";
         currentName = url.searchParams.get('name') || "Unknown";
         currentBuble = url.searchParams.get('Buble') || "-";
-        
         document.getElementById("displayUserName").innerText = `ทหาร: ${currentName} (${currentNumber})`;
-        document.getElementById("targetNameDisplay").innerText = currentName;
-        
         state = "SNAP_BOTTLE";
-        document.getElementById("stepTag").textContent = "STEP 2: ถ่ายรูปขวดปัสสาวะ";
+        document.getElementById("btnSnap").style.display = "flex";
         document.getElementById("bottleGuide").classList.add("show");
         document.getElementById("liveStatusBadge").classList.add("show");
+<<<<<<< HEAD
         document.getElementById("btnSnap").style.display = "flex";
         document.getElementById("btnSnap").innerText = "📸 ถ่ายภาพและบันทึก";
     } catch (e) { console.log("QR Format Error"); }
 }
 
 // ================= COLOR ANALYZE (CIELAB) =================
+=======
+        document.getElementById("stepTag").textContent = "STEP 2: ถ่ายรูปขวดปัสสาวะ";
+    } catch (e) { console.log("QR Format Error"); }
+}
+
+// ================= COLOR ANALYZE (Lab) =================
+>>>>>>> parent of 4ddd91a (fix all code)
 function rgbToLab(r, g, b) {
     r /= 255; g /= 255; b /= 255;
     r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
@@ -115,13 +130,11 @@ function analyzeColor() {
     const urineRGB = getAvgRGB(canvasElement.width / 2, canvasElement.height / 2, 30);
     const lab = rgbToLab(urineRGB[0], urineRGB[1], urineRGB[2]);
     let lv = 1;
-
     if (lab.l > 75 && lab.b < 25) lv = 0; 
     else if (lab.l < 42) lv = 4; 
     else if (lab.b > 58 || (lab.b > 45 && lab.l < 60)) lv = 3; 
     else if (lab.b > 35) lv = 2; 
     else lv = 1;
-
     currentLV = lv;
     document.getElementById("liveText").innerText = `LV.${lv} - ${LEVELS[lv].name}`;
     document.getElementById("liveDot").style.backgroundColor = LEVELS[lv].color;
@@ -129,7 +142,9 @@ function analyzeColor() {
 
 // ================= SNAP & SAVE =================
 
+// กดถ่ายรูปขวด -> ไปขั้นตอนสแกนปรอท
 function takePhoto() {
+<<<<<<< HEAD
     document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
     
     if (cameraStream) {
@@ -151,11 +166,78 @@ function takePhoto() {
     }
 
     setTimeout(() => document.getElementById("modalBodyTemp").focus(), 400);
+=======
+    // บันทึกรูปขวดเก็บไว้
+    document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
+    
+    // เปลี่ยนสถานะไปสแกนปรอท
+    state = "SCAN_TEMP";
+    document.getElementById("bottleGuide").classList.remove("show");
+    document.getElementById("tempGuide").classList.add("show"); // ต้องมีกรอบใหม่สำหรับปรอทใน HTML
+    document.getElementById("stepTag").textContent = "STEP 3: สแกนเลขปรอท";
+    document.getElementById("btnSnap").onclick = scanThermometer; // เปลี่ยนหน้าที่ปุ่ม
+}
+
+// ฟังก์ชันสแกนตัวเลขจากปรอท
+async function scanThermometer() {
+    const statusEl = document.getElementById("syncStatus");
+    statusEl.innerText = "กำลังอ่านค่าตัวเลข...";
+    
+    // ถ่ายภาพเฉพาะส่วนหน้าจอปรอท (Crop)
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 300;
+    tempCanvas.height = 150;
+    const ctx = tempCanvas.getContext('2d');
+    // วาดรูปจากกลางจอ
+    ctx.drawImage(video, (video.videoWidth-300)/2, (video.videoHeight-150)/2, 300, 150, 0, 0, 300, 150);
+    
+    const imageData = tempCanvas.toDataURL('image/png');
+
+    try {
+        // ใช้ Tesseract.js อ่านค่า
+        const result = await Tesseract.recognize(imageData, 'eng', {
+            tessedit_char_whitelist: '0123456789.' // ให้อ่านเฉพาะตัวเลขและจุด
+        });
+        
+        let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
+        
+        // ตรวจสอบว่าเป็นตัวเลขอุณหภูมิที่สมเหตุสมผลหรือไม่ (35-42)
+        let val = parseFloat(detectedText);
+        if (!isNaN(val) && val >= 35 && val <= 42) {
+            currentTemp = val.toFixed(1);
+            showSavePopup();
+        } else {
+            alert("อ่านค่าไม่ได้หรือค่าผิดปกติ (" + detectedText + ") กรุณาลองใหม่ หรือพิมพ์เอง");
+            showSavePopup(detectedText); // เปิดป๊อปอัพให้แก้เอง
+        }
+    } catch (e) {
+        alert("ระบบสแกนขัดข้อง กรุณาพิมพ์เอง");
+        showSavePopup();
+    }
+    statusEl.innerText = "";
+}
+
+function showSavePopup(preFill = "") {
+    state = "COMPLETED";
+    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    
+    document.getElementById("dataPopup").classList.add("show");
+    document.getElementById("modalBodyTemp").value = currentTemp || preFill;
+    
+    const info = LEVELS[currentLV];
+    const badge = document.getElementById("popupColorBadge");
+    badge.innerText = `ผลวิเคราะห์: ${info.name} (LV.${currentLV})`;
+    badge.style.backgroundColor = info.color;
+>>>>>>> parent of 4ddd91a (fix all code)
 }
 
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
+<<<<<<< HEAD
     if(!temp || temp < 34 || temp > 43) return alert("กรุณากรอกอุณหภูมิให้ถูกต้อง (34.0 - 43.0)");
+=======
+    if(!temp || temp < 35 || temp > 42) return alert("กรุณาใส่อุณหภูมิที่ถูกต้อง (35.0 - 42.0)");
+>>>>>>> parent of 4ddd91a (fix all code)
     
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
@@ -167,20 +249,28 @@ async function confirmSave() {
         time: new Date().toLocaleTimeString('th-TH') 
     };
 
+<<<<<<< HEAD
     const spinner = document.getElementById("syncSpinner");
     if(spinner) spinner.style.display = "block";
 
+=======
+>>>>>>> parent of 4ddd91a (fix all code)
     try {
         await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
         historyData.unshift(record);
         localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
         alert("บันทึกข้อมูลเรียบร้อย");
+<<<<<<< HEAD
         resetApp();
     } catch { 
         alert("บันทึกล้มเหลว กรุณาลองใหม่"); 
     }
     if(spinner) spinner.style.display = "none";
+=======
+        location.reload();
+    } catch { alert("บันทึกล้มเหลว"); }
+>>>>>>> parent of 4ddd91a (fix all code)
 }
 
 // ================= UTILS =================
@@ -189,12 +279,12 @@ function getAvgRGB(x, y, size) {
     const data = canvas.getImageData(x - size/2, y - size/2, size, size).data;
     let r=0, g=0, b=0;
     for (let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
-    const pixels = data.length / 4;
-    return [r/pixels, g/pixels, b/pixels];
+    return [r/(data.length/4), g/(data.length/4), b/(data.length/4)];
 }
 
 function renderHistory() {
   const body = document.getElementById("historyBody");
+<<<<<<< HEAD
   if (!body) return;
   body.innerHTML = historyData.map(r => `
     <tr>
@@ -220,11 +310,11 @@ async function toggleFlash() {
     if (!capabilities.torch) return alert("ไม่รองรับแฟลช");
     isFlashOn = !isFlashOn;
     await track.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+=======
+  if (body) body.innerHTML = historyData.map(r => `<tr><td>${r.date}</td><td>${r.Number}</td><td>${r.temp}°</td><td>LV.${r.level}</td></tr>`).join('');
+>>>>>>> parent of 4ddd91a (fix all code)
 }
 
 function startClock() {
-    setInterval(() => { 
-        const el = document.getElementById('clock');
-        if(el) el.textContent = new Date().toLocaleTimeString('th-TH'); 
-    }, 1000);
+    setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('th-TH'); }, 1000);
 }
