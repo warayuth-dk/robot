@@ -180,23 +180,40 @@ function takePhoto() {
 
 // ฟังก์ชันสแกนตัวเลขจากปรอท
 async function scanThermometer() {
+<<<<<<< HEAD
     const statusEl = document.getElementById("syncStatus");
     statusEl.innerText = "กำลังอ่านค่าตัวเลข...";
     
     // ถ่ายภาพเฉพาะส่วนหน้าจอปรอท (Crop)
+=======
+    const snapBtn = document.getElementById("btnSnap");
+    snapBtn.innerText = "⌛ กำลังอ่านค่า...";
+    snapBtn.disabled = true;
+
+    // สร้าง Canvas สำหรับ Crop รูปปรอท (ตามกรอบสี่เหลี่ยมผืนผ้า)
+>>>>>>> parent of 4e78c02 (fix)
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 300;
     tempCanvas.height = 150;
     const ctx = tempCanvas.getContext('2d');
+<<<<<<< HEAD
     // วาดรูปจากกลางจอ
     ctx.drawImage(video, (video.videoWidth-300)/2, (video.videoHeight-150)/2, 300, 150, 0, 0, 300, 150);
+=======
+    ctx.drawImage(video, (video.videoWidth-400)/2, (video.videoHeight-200)/2, 400, 200, 0, 0, 400, 200);
+>>>>>>> parent of 4e78c02 (fix)
     
     const imageData = tempCanvas.toDataURL('image/png');
 
     try {
+<<<<<<< HEAD
         // ใช้ Tesseract.js อ่านค่า
         const result = await Tesseract.recognize(imageData, 'eng', {
             tessedit_char_whitelist: '0123456789.' // ให้อ่านเฉพาะตัวเลขและจุด
+=======
+        const result = await Tesseract.recognize(imageData, 'eng', {
+            tessedit_char_whitelist: '0123456789.'
+>>>>>>> parent of 4e78c02 (fix)
         });
         
         let detectedText = result.data.text.trim().replace(/[^0-9.]/g, '');
@@ -207,11 +224,19 @@ async function scanThermometer() {
             currentTemp = val.toFixed(1);
             showSavePopup();
         } else {
+<<<<<<< HEAD
             alert("อ่านค่าไม่ได้หรือค่าผิดปกติ (" + detectedText + ") กรุณาลองใหม่ หรือพิมพ์เอง");
             showSavePopup(detectedText); // เปิดป๊อปอัพให้แก้เอง
         }
     } catch (e) {
         alert("ระบบสแกนขัดข้อง กรุณาพิมพ์เอง");
+=======
+            alert(`ค่าที่อ่านได้ "${detectedText}" ไม่อยู่ในเกณฑ์ที่กำหนด\nกรุณาเล็งใหม่หรือพิมพ์แก้ไขเองในหน้าถัดไป`);
+            showSavePopup(detectedText); 
+        }
+    } catch (e) {
+        alert("OCR Error: กรุณากรอกอุณหภูมิด้วยตนเอง");
+>>>>>>> parent of 4e78c02 (fix)
         showSavePopup();
     }
     statusEl.innerText = "";
