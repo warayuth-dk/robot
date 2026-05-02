@@ -142,7 +142,7 @@ function showSavePopup() {
 
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
-    if(!temp || temp < 34 || temp > 43) return alert("กรุณาตรวจสอบอุณหภูมิ (34.0 - 43.0)");
+    if(!temp || temp < 35 || temp > 43) return alert("กรุณาตรวจสอบอุณหภูมิ (35.0 - 43.0)");
     
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
