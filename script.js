@@ -35,7 +35,7 @@ async function autoStartCamera() {
 async function initCamera() {
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 720 } } 
         });
         video.srcObject = cameraStream;
         await video.play();
@@ -71,7 +71,7 @@ function handleQRCode(data) {
         currentName = url.searchParams.get('name') || "Unknown";
         currentBuble = url.searchParams.get('Buble') || "-";
         
-        document.getElementById("displayUserName").innerText = `ทหาร: ${currentName} (${currentNumber})`;
+        document.getElementById("displayUserName").innerText = `ทหาร: ${currentName} (${currentNumber} - ${currentBuble})`;
         document.getElementById("targetNameDisplay").innerText = currentName;
         
         state = "SNAP_BOTTLE";
@@ -147,7 +147,8 @@ async function confirmSave() {
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
         Number: currentNumber, 
-        name: currentName, 
+        name: currentName,
+        buble: currentBuble, 
         temp: temp, 
         level: currentLV, 
         status: LEVELS[currentLV].name, 
@@ -193,6 +194,7 @@ function renderHistory() {
       <td>${r.time}</td>
       <td>${r.Number}</td>
       <td>${r.name}</td>
+      <td>${r.buble}</td>
       <td>${r.temp}°</td>
       <td style="font-weight:bold; color:${LEVELS[r.level].color}">LV.${r.level}</td>
     </tr>
