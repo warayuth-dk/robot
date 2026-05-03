@@ -150,7 +150,7 @@ async function confirmSave() {
         name: currentName,
         buble: currentBuble, 
         temp: temp, 
-        level: currentLV, 
+        level: String(currentLV), 
         status: LEVELS[currentLV].name, 
         time: new Date().toLocaleTimeString('th-TH') 
     };
