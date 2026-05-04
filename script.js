@@ -77,6 +77,7 @@ function handleQRCode(data) {
         
         state = "SNAP_BOTTLE";
         document.getElementById("stepTag").textContent = "STEP 2: ถ่ายรูปขวดปัสสาวะ";
+        document.getElementById("qrGuide").classList.remove("show");
         document.getElementById("bottleGuide").classList.add("show");
         document.getElementById("liveStatusBadge").classList.add("show");
         document.getElementById("btnSnap").style.display = "flex";
