@@ -67,11 +67,11 @@ async function initCamera() {
         const constraints = {
             video: mainId ? { 
                 deviceId: { exact: mainId },
-                width: { ideal: 1280 }, 
+                width: { ideal: 840 }, 
                 height: { ideal: 720 } 
             } : { 
                 facingMode: "environment",
-                width: { ideal: 1280 }, 
+                width: { ideal: 840 }, 
                 height: { ideal: 720 }
             }
         };
