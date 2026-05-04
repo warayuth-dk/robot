@@ -34,50 +34,40 @@ async function autoStartCamera() {
 
 async function initCamera() {
     try {
-        // 1. เคลียร์การทำงานเดิมก่อน (ถ้ามี) เพื่อป้องกันเครื่องค้างหรือเฟรมเรตตก
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => track.stop());
-        }
-
-        // 2. ตั้งค่าความละเอียดที่เหมาะสม (HD)
-        const constraints = { 
-            video: { 
-                facingMode: "environment", 
-                width: { ideal: 1280 }, // ปรับเป็น 1280 เพื่อความชัด
-                height: { ideal: 720 } 
-            } 
-        };
-
-        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 720 } } 
+        });
         video.srcObject = cameraStream;
         await video.play();
-
-        // 3. จัดการ UI
         document.getElementById("instructionOverlay").style.display = "none";
         state = "SCAN_QR";
-        
-        // แสดงกรอบเส้นปะ QR ทันทีที่กล้องเปิด
-        const qrGuide = document.getElementById("qrGuide");
-        if (qrGuide) qrGuide.classList.add("show");
-        
-        // 4. เริ่ม Loop การทำงาน
+        document.getElementById("qrGuide").classList.add("show");
         requestAnimationFrame(loop);
-    } catch(e) { 
-        alert("ไม่สามารถเข้าถึงกล้องได้: " + e.message); 
-    }
+    } catch(e) { alert("เปิดกล้องไม่ได้"); }
 }
 
 // ================= CORE LOOP =================
-function loop() {
+function loop(time) {
     if (state === "COMPLETED") return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
+        canvasElement.width = video.videoWidth; 
+        canvasElement.height = video.videoHeight;
         canvas.drawImage(video, 0, 0);
 
         if (state === "SCAN_QR") {
-            const imageData = canvas.getImageData(0,0,canvasElement.width,canvasElement.height);
-            const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
-            if (code) handleQRCode(code.data);
+            if (time - lastQRScanTime > 250) {
+                lastQRScanTime = time;
+
+                // 🎯 ปรับพื้นที่สแกนให้กว้างขึ้นเป็น 80% (0.8) ตาม CSS
+                const scanPercent = 0.8; 
+                const scanSize = Math.min(canvasElement.width, canvasElement.height) * scanPercent;
+                const sx = (canvasElement.width - scanSize) / 2;
+                const sy = (canvasElement.height - scanSize) / 2;
+
+                const imageData = canvas.getImageData(sx, sy, scanSize, scanSize);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code) handleQRCode(code.data);
+            }
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
