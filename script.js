@@ -47,27 +47,16 @@ async function initCamera() {
 }
 
 // ================= CORE LOOP =================
-function loop(time) {
+function loop() {
     if (state === "COMPLETED") return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvasElement.width = video.videoWidth; 
-        canvasElement.height = video.videoHeight;
+        canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
         canvas.drawImage(video, 0, 0);
 
         if (state === "SCAN_QR") {
-            if (time - lastQRScanTime > 250) {
-                lastQRScanTime = time;
-
-                // 🎯 ปรับพื้นที่สแกนให้กว้างขึ้นเป็น 80% (0.8) ตาม CSS
-                const scanPercent = 0.8; 
-                const scanSize = Math.min(canvasElement.width, canvasElement.height) * scanPercent;
-                const sx = (canvasElement.width - scanSize) / 2;
-                const sy = (canvasElement.height - scanSize) / 2;
-
-                const imageData = canvas.getImageData(sx, sy, scanSize, scanSize);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code) handleQRCode(code.data);
-            }
+            const imageData = canvas.getImageData(0,0,canvasElement.width,canvasElement.height);
+            const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
+            if (code) handleQRCode(code.data);
         } 
         else if (state === "SNAP_BOTTLE") {
             analyzeColor();
