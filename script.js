@@ -32,18 +32,71 @@ async function autoStartCamera() {
     } catch (e) { console.log("Camera access denied"); }
 }
 
+// 🟢 ฟังก์ชันค้นหา ID กล้องหลัก (1x) - เพิ่มเติมเฉพาะส่วนนี้
+async function getMainCameraId() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    
+    // กรองเฉพาะกล้องหลัง
+    let backCameras = videoDevices.filter(d => 
+        d.label.toLowerCase().includes('back') || 
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('camera 0')
+    );
+
+    // พยายามหาตัวที่ไม่มีคำว่า Wide, Ultra, 0.5, หรือ Macro (ซึ่งมักจะเป็นเลนส์หลัก 1x)
+    let mainCamera = backCameras.find(d => 
+        !d.label.toLowerCase().includes('wide') && 
+        !d.label.toLowerCase().includes('ultra') &&
+        !d.label.toLowerCase().includes('0.5') &&
+        !d.label.toLowerCase().includes('macro')
+    );
+
+    // ถ้าเจอเจาะจงให้ใช้ตัวนั้น ถ้าไม่เจอให้เอาตัวแรกของกลุ่มกล้องหลัง
+    return mainCamera ? mainCamera.deviceId : (backCameras[0] ? backCameras[0].deviceId : null);
+}
+
 async function initCamera() {
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 720 } } 
-        });
+        // เคลียร์ Stream เก่า
+        if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+
+        // 🟢 เลือกใช้ ID กล้องที่ค้นหาได้
+        const mainId = await getMainCameraId();
+        
+        const constraints = {
+            video: mainId ? { 
+                deviceId: { exact: mainId },
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 } 
+            } : { 
+                facingMode: "environment",
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 }
+            }
+        };
+
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = cameraStream;
         await video.play();
+        
         document.getElementById("instructionOverlay").style.display = "none";
         state = "SCAN_QR";
         document.getElementById("qrGuide").classList.add("show");
         requestAnimationFrame(loop);
-    } catch(e) { alert("เปิดกล้องไม่ได้"); }
+    } catch(e) { 
+        console.error("Camera error:", e);
+        // Fallback: ถ้า Error เพราะระบุ ID เจาะจงเกินไป ให้ลองแบบปกติ
+        if (e.name === "OverconstrainedError" || e.name === "NotFoundError") {
+            cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+            });
+            video.srcObject = cameraStream;
+            await video.play();
+        } else {
+            alert("เปิดกล้องไม่ได้"); 
+        }
+    }
 }
 
 // ================= CORE LOOP =================
@@ -117,13 +170,9 @@ function analyzeColor() {
 // ================= SNAP & SAVE =================
 
 function takePhoto() {
-    // 1. ถ่ายรูปขวด
     document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
-    
-    // 2. หยุดกล้องและไปหน้าบันทึกทันที
     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     state = "COMPLETED";
-    
     showSavePopup();
 }
 
