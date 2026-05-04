@@ -41,6 +41,7 @@ async function initCamera() {
         await video.play();
         document.getElementById("instructionOverlay").style.display = "none";
         state = "SCAN_QR";
+        document.getElementById("qrGuide").classList.add("show");
         requestAnimationFrame(loop);
     } catch(e) { alert("เปิดกล้องไม่ได้"); }
 }
@@ -129,6 +130,7 @@ function showSavePopup() {
     document.getElementById("dataPopup").classList.add("show");
     document.getElementById("btnSnap").style.display = "none";
     document.getElementById("bottleGuide").classList.remove("show");
+    document.getElementById("qrGuide").classList.remove("show");
     document.getElementById("liveStatusBadge").classList.remove("show");
     
     const info = LEVELS[currentLV];

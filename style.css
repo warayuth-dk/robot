@@ -358,3 +358,16 @@ td {
     transform: translateY(100%);
   }
 }
+.qr-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;  /* ขนาดกรอบ QR */
+  aspect-ratio: 1/1;
+  border: 2px dashed var(--accent); /* เส้นปะสีฟ้า */
+  border-radius: 12px;
+  display: none;
+  z-index: 10;
+}
+.qr-guide.show { display: block; }
