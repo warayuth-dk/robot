@@ -34,16 +34,37 @@ async function autoStartCamera() {
 
 async function initCamera() {
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 720 } } 
-        });
+        // 1. เคลียร์การทำงานเดิมก่อน (ถ้ามี) เพื่อป้องกันเครื่องค้างหรือเฟรมเรตตก
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+        }
+
+        // 2. ตั้งค่าความละเอียดที่เหมาะสม (HD)
+        const constraints = { 
+            video: { 
+                facingMode: "environment", 
+                width: { ideal: 1280 }, // ปรับเป็น 1280 เพื่อความชัด
+                height: { ideal: 720 } 
+            } 
+        };
+
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = cameraStream;
         await video.play();
+
+        // 3. จัดการ UI
         document.getElementById("instructionOverlay").style.display = "none";
         state = "SCAN_QR";
-        document.getElementById("qrGuide").classList.add("show");
+        
+        // แสดงกรอบเส้นปะ QR ทันทีที่กล้องเปิด
+        const qrGuide = document.getElementById("qrGuide");
+        if (qrGuide) qrGuide.classList.add("show");
+        
+        // 4. เริ่ม Loop การทำงาน
         requestAnimationFrame(loop);
-    } catch(e) { alert("เปิดกล้องไม่ได้"); }
+    } catch(e) { 
+        alert("ไม่สามารถเข้าถึงกล้องได้: " + e.message); 
+    }
 }
 
 // ================= CORE LOOP =================
