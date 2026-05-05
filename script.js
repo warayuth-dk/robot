@@ -170,7 +170,10 @@ function analyzeColor() {
 // ================= SNAP & SAVE =================
 
 function takePhoto() {
-    document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
+    // 📸 บีบอัดรูปเป็น JPEG คุณภาพ 0.6 เพื่อความเร็วในการส่งข้อมูล
+    const photoData = canvasElement.toDataURL('image/jpeg', 0.6);
+    document.getElementById("photoSnapshot").src = photoData;
+    
     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     state = "COMPLETED";
     showSavePopup();
@@ -195,6 +198,7 @@ function showSavePopup() {
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
     if(!temp || temp < 35 || temp > 43) return alert("กรุณาตรวจสอบอุณหภูมิ (35.0 - 43.0)");
+    
     const imageData = document.getElementById("photoSnapshot").src;
     
     const record = { 
