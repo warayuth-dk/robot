@@ -1,5 +1,5 @@
 // ================= CONFIG & DATA =================
-const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycby5vaZl4BeSJLN2NQk2KOxWixHtnIPJwCSfp7UvP9hknK6roDrCTdLswQo4iFqrpf3XDg/exec'; 
+const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyBz5dqDwwVrgLCnEcavza0krwszulbGFUaZOtwDttrVb3G5AAHK3-TaIhh05bzDWLwYQ/exec'; 
 
 const LEVELS = [
   { lv: 0, name: "ใส", color: "#ffffff" },          
