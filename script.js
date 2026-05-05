@@ -170,14 +170,7 @@ function analyzeColor() {
 // ================= SNAP & SAVE =================
 
 function takePhoto() {
-    const photoData = canvasElement.toDataURL('image/jpeg', 0.8);
-    // ลองเช็คดูว่ามีข้อมูลรูปภาพไหม
-    if (!photoData || photoData === "data:,") {
-        alert("ถ่ายรูปไม่ติด!");
-        return;
-    }
-    document.getElementById("photoSnapshot").src = photoData;
-    
+    document.getElementById("photoSnapshot").src = canvasElement.toDataURL('image/jpeg', 0.8);
     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     state = "COMPLETED";
     showSavePopup();
