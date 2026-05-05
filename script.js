@@ -195,6 +195,7 @@ function showSavePopup() {
 async function confirmSave() {
     const temp = document.getElementById('modalBodyTemp').value;
     if(!temp || temp < 35 || temp > 43) return alert("กรุณาตรวจสอบอุณหภูมิ (35.0 - 43.0)");
+    const imageData = document.getElementById("photoSnapshot").src;
     
     const record = { 
         date: new Date().toLocaleDateString('th-TH'), 
@@ -204,7 +205,8 @@ async function confirmSave() {
         temp: temp, 
         level: String(currentLV), 
         status: LEVELS[currentLV].name, 
-        time: new Date().toLocaleTimeString('th-TH') 
+        time: new Date().toLocaleTimeString('th-TH'),
+        image: imageData // 🟢 ส่งรูปไปด้วย
     };
 
     document.getElementById("syncSpinner").style.display = "block";
