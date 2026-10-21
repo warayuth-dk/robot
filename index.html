@@ -12,9 +12,26 @@
 </head>
 <body>
 
-<div class="container">
+<main id="loginScreen" class="login-screen">
+  <div class="login-wrap">
+    <div class="login-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3C10 6.5 6.5 10.3 6.5 14a5.5 5.5 0 0 0 11 0C17.5 10.3 14 6.5 12 3Z" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 14.5c.2 1.4 1.1 2.3 2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span>URINESCAN <b>PRO</b><small>HEALTH SCREENING SYSTEM</small></span></div>
+    <form class="login-card" onsubmit="login(event)">
+      <div class="login-kicker"><span></span> UNIT ACCESS</div>
+      <h1>เข้าสู่ระบบ</h1>
+      <p class="login-intro">กรอกรหัสประจำหน่วยเพื่อเริ่มการตรวจ</p>
+      <label for="unitCode">รหัสประจำหน่วย</label>
+      <div class="code-field"><input id="unitCode" type="password" placeholder="กรอกรหัสประจำหน่วย" autocomplete="off" required><button class="show-code" type="button" aria-label="แสดงรหัส" aria-pressed="false" onclick="toggleUnitCode(this)">แสดง</button></div>
+      <p id="loginError" role="alert"></p>
+      <label id="unitFilePicker" hidden>เลือกไฟล์ units.txt<input type="file" accept=".txt,text/plain" onchange="loadUnitsFile(this)"></label>
+      <button class="login-submit" type="submit">เข้าสู่ระบบ <span aria-hidden="true">→</span></button>
+      <button id="reloadUnits" type="button" class="login-retry" onclick="loadUnits()" hidden>↻ &nbsp;โหลดข้อมูลหน่วยใหม่</button>
+    </form>
+    <p class="login-footer"><span></span> ระบบสำหรับใช้งานภายในหน่วย</p>
+  </div>
+</main>
+<div class="container" id="appScreen" hidden>
   <header>
-    <div class="logo-text">🔬 ปตอ.2 พัน.2</div>
+    <div><div class="logo-text" id="unitName"></div><button class="logout-button" onclick="logout()">ออกจากระบบ</button></div>
     <div class="header-time">
         <div id="currentDate" class="current-date">-- -- ----</div>
         <div id="clock" class="clock">00:00:00</div>

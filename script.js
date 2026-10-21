@@ -1,5 +1,7 @@
 // ================= CONFIG & DATA =================
-const CONFIG_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyBz5dqDwwVrgLCnEcavza0krwszulbGFUaZOtwDttrVb3G5AAHK3-TaIhh05bzDWLwYQ/exec'; 
+const SESSION_KEY = 'urine_unit_session';
+let units = [];
+let currentUnit = null;
 
 const LEVELS = [
   { lv: 0, name: "ใส", color: "#ffffff" },          
@@ -11,19 +13,103 @@ const LEVELS = [
 
 let state = "IDLE", currentLV = 0, cameraStream = null;
 let currentNumber = "", currentName = "", currentBuble = "", isFlashOn = false;
-let historyData = JSON.parse(localStorage.getItem('urine_history_v2') || '[]');
+let historyData = [];
 
 const video = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
 const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
 
 // ================= INIT =================
-document.addEventListener('DOMContentLoaded', () => {
-    renderHistory();
+document.addEventListener('DOMContentLoaded', async () => {
     startClock();
-    autoStartCamera();
     document.getElementById('currentDate').textContent = new Date().toLocaleDateString('th-TH');
+    await loadUnits();
 });
+
+async function loadUnits() {
+    try {
+        document.getElementById('loginError').textContent = '';
+        const response = await fetch('units.txt', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        applyUnits(await response.text());
+        document.getElementById('reloadUnits').hidden = true;
+    } catch (error) {
+        console.error('โหลด units.txt ไม่สำเร็จ:', error);
+        document.getElementById('reloadUnits').hidden = false;
+        document.getElementById('unitFilePicker').hidden = location.protocol !== 'file:';
+        document.getElementById('loginError').textContent = location.protocol === 'file:'
+            ? 'กรุณาเลือกไฟล์ units.txt เพื่อทดสอบ' 
+            : 'โหลด units.txt ไม่ได้ กรุณาตรวจสอบว่าไฟล์อยู่บนเซิร์ฟเวอร์ แล้วลองใหม่';
+    }
+}
+
+function applyUnits(text) {
+units = text.split(/\r?\n/)
+        .map(line => line.trim()).filter(line => line && !line.startsWith('#'))
+        .map(line => {
+            const [code, name, url] = line.split('|').map(value => value.trim());
+            return { code, name, url };
+        }).filter(unit => unit.code && unit.name && unit.url);
+    if (!units.length) throw new Error('ไม่มีข้อมูลหน่วยที่ถูกต้อง');
+    const savedCode = localStorage.getItem(SESSION_KEY);
+    const savedUnit = units.find(unit => unit.code === savedCode);
+    if (savedUnit) enterUnit(savedUnit);
+    else localStorage.removeItem(SESSION_KEY);
+
+}
+
+async function loadUnitsFile(input) {
+    if (!input.files[0]) return;
+    try {
+        applyUnits(await input.files[0].text());
+        document.getElementById('loginError').textContent = '';
+    } catch (error) {
+        document.getElementById('loginError').textContent = 'ไฟล์ข้อมูลหน่วยไม่ถูกต้อง';
+    }
+}
+
+function toggleUnitCode(button) {
+    const input = document.getElementById('unitCode');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    button.textContent = show ? 'ซ่อน' : 'แสดง';
+    button.setAttribute('aria-label', show ? 'ซ่อนรหัส' : 'แสดงรหัส');
+    button.setAttribute('aria-pressed', String(show));
+}
+
+function login(event) {
+    event.preventDefault();
+    if (!units.length) {
+        document.getElementById('loginError').textContent = 'ยังโหลดข้อมูลหน่วยไม่ได้ กรุณากดโหลดข้อมูลใหม่';
+        return;
+    }
+    const code = document.getElementById('unitCode').value.trim();
+    const unit = units.find(item => item.code === code);
+    if (!unit) {
+        document.getElementById('loginError').textContent = 'รหัสหน่วยไม่ถูกต้อง';
+        return;
+    }
+    localStorage.setItem(SESSION_KEY, unit.code);
+    enterUnit(unit);
+}
+
+function enterUnit(unit) {
+    currentUnit = unit;
+    document.getElementById('unitName').textContent = `🔬 ${unit.name}`;
+    document.title = `UrineScan Pro — ${unit.name}`;
+    document.getElementById('loginScreen').hidden = true;
+    document.getElementById('appScreen').hidden = false;
+    try { historyData = JSON.parse(localStorage.getItem('urine_history_unit_' + unit.code) || '[]'); }
+    catch { historyData = []; }
+    renderHistory();
+    autoStartCamera();
+}
+
+function logout() {
+    localStorage.removeItem(SESSION_KEY);
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    location.reload();
+}
 
 async function autoStartCamera() {
     try {
@@ -215,9 +301,9 @@ async function confirmSave() {
 
     document.getElementById("syncSpinner").style.display = "block";
     try {
-        await fetch(CONFIG_SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
+        await fetch(currentUnit.url, { method: "POST", mode: "no-cors", body: JSON.stringify(record) });
         historyData.unshift(record);
-        localStorage.setItem('urine_history_v2', JSON.stringify(historyData.slice(0, 10)));
+        localStorage.setItem('urine_history_unit_' + currentUnit.code, JSON.stringify(historyData.slice(0, 10)));
         renderHistory();
         alert("บันทึกข้อมูลเรียบร้อย");
         resetApp();

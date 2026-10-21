@@ -1,0 +1,3 @@
+# รหัส | ชื่อหน่วย | URL ของ Google Apps Script สำหรับหน่วย
+# เปลี่ยนรหัสตัวอย่างก่อนใช้งาน และเพิ่มหน่วยได้บรรทัดละหนึ่งหน่วย
+04622656 | ปตอ.2 พัน.2 | https://script.google.com/macros/s/AKfycbyBz5dqDwwVrgLCnEcavza0krwszulbGFUaZOtwDttrVb3G5AAHK3-TaIhh05bzDWLwYQ/exec
