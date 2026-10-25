@@ -2,3 +2,4 @@
 # เปลี่ยนรหัสตัวอย่างก่อนใช้งาน และเพิ่มหน่วยได้บรรทัดละหนึ่งหน่วย
 001 | ปตอ.2 พัน.2 | https://script.google.com/macros/s/AKfycbyBz5dqDwwVrgLCnEcavza0krwszulbGFUaZOtwDttrVb3G5AAHK3-TaIhh05bzDWLwYQ/exec
 002 | บชร.3 | https://script.google.com/macros/s/AKfycbxS3c3UJxzAabREMTv6yI-YkDcXfrQbF9eja1URDOaX8Li5PSrX9mA2YreAkS-1tYzg/exec
+002 | ม.1 พัน.1 | https://script.google.com/macros/s/AKfycbzsw5WEBVL91GjeKATCwRIy3JYK-dT_b7nsl9By28S3oBTfjrtR68u27eTawPkXVBiB6g/exec
