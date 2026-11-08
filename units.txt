@@ -5,3 +5,4 @@
 200101 | ปตอ.2 พัน.1 | https://script.google.com/macros/s/AKfycbxOjNxsKrUgHTGlL4n6JSJT3fF3VS5sH6qQ6Kh8rUj_gpoVyWVsxpDLiKm65doW6C-Pvw/exec
 100101 | ม.1 พัน.1 | https://script.google.com/macros/s/AKfycbzsw5WEBVL91GjeKATCwRIy3JYK-dT_b7nsl9By28S3oBTfjrtR68u27eTawPkXVBiB6g/exec
 1005 | ปตอ.1 พัน.5 | https://script.google.com/macros/s/AKfycbyvkcD5FC4D7397vX1rbTO-ubiKd4bidZRtVrDm8GsgJ5c0VHSaEPyavXx0blXRL0oiCQ/exec
+1006 | ปตอ.1 พัน.6 | https://script.google.com/macros/s/AKfycbyxb5zjeHskUPxYtGf58bt1AaZynQcizGPidCOfV76rKqGT7I_gbrEm9f0guHkBz17f/exec
